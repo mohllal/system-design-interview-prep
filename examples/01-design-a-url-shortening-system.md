@@ -349,107 +349,138 @@ sequenceDiagram
   3. Check for collisions (retry if needed)
   4. Store mapping in database
 
-- **Simple Hash-based Approach (with Collision Handling)**
+The URL shortening algorithm consists of two main parts:
+
+1. **Hashing**: Generate a unique identifier from the original URL
+2. **Encoding**: Convert the identifier to a short, human-readable string
+
+#### Hashing Algorithms
+
+##### Option 1: MD5 Hashing
+
+MD5 generates a 128-bit (32 hexadecimal characters) hash from the input URL.
 
 ```python
 import hashlib
-import time
-import random
-import string
 
-def generate_short_url(original_url):
-    """Main function to generate short URL with collision handling"""
-    max_retries = 5
-    
-    for attempt in range(max_retries):
-        # Generate unique input string
-        unique_string = create_unique_string(original_url, attempt)
-        
-        # Generate short ID from hash
-        short_id = generate_short_id(unique_string)
-        
-        # Check for collision
-        if not url_exists(short_id):
-            return f"https://short.ly/{short_id}"
-    
-    # Fall back to counter-based if all retries failed
-    return generate_short_url_counter(original_url)
-
-def create_unique_string(original_url, attempt):
-    """Create unique input string for hashing"""
-    timestamp = time.time()
-    
-    if attempt == 0:
-        return f"{original_url}{timestamp}"
-    else:
-        # Add random suffix for retry attempts
-        random_suffix = generate_random_suffix()
-        return f"{original_url}{timestamp}{random_suffix}"
-
-def generate_random_suffix():
-    """Generate 4-character random suffix"""
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choices(chars, k=4))
-
-def generate_short_id(unique_string):
-    """Generate 7-character short ID from input string"""
-    hash_hex = hashlib.md5(unique_string.encode()).hexdigest()
-    return hash_hex[:7]
-
-def url_exists(short_id):
-    """Check if short_id already exists in database"""
-    # Database query to check existence
-    # Return True if exists, False otherwise
-    pass
+def md5_hash(url):
+    return hashlib.md5(url.encode()).hexdigest()
 ```
 
-- **Counter-based Approach**
+- **Pros**: Fast, widely supported
+- **Cons**: Higher collision probability, cryptographically broken
+- **Collision Handling**: We can double hash the URL to reduce the collision probability
 
 ```python
-def generate_short_url_counter(original_url):
-    # Get next counter from database
-    counter = get_next_counter()
-    
-    # Convert to base62 (simple approach)
-    short_id = base62_encode(counter)
-    
-    return f"https://short.ly/{short_id}"
+def md5_double_hash(url):
+    _hash = hashlib.md5(url.encode()).hexdigest()
+    return hashlib.md5(_hash).hexdigest()
+```
+
+##### Option 2: SHA-256 Hashing
+
+SHA-256 generates a 256-bit (64 hexadecimal characters) hash from the input URL.
+
+```python
+import hashlib
+
+def sha256_hash(url):
+    return hashlib.sha256(url.encode()).hexdigest()
+```
+
+- **Pros**: Lower collision probability, cryptographically secure
+- **Cons**: Slower than MD5, generates longer hashes
+
+##### Option 3: UUID Generation
+
+UUID v4 generates a random 128-bit identifier (32 hexadecimal characters).
+
+```python
+import uuid
+
+def generate_uuid():
+    return str(uuid.uuid4().hex)
+```
+
+- **Pros**: Extremely low collision probability (2^122 possible values)
+- **Cons**: Not deterministic (same input = different output)
+
+UUID v4 generates random hashes, which are unique, given the number of possible combinations (2^122), and has a lower collision probability but are also longer.
+
+##### Option 4: Counter-based (Sequencer)
+
+A sequencer can be used to generate unique sequential IDs for the URLs. The sequencer can be implemented as a separate service that generates unique IDs in a distributed manner.
+
+It can be scaled horizontally on multiple nodes and use a consensus algorithm like Raft or a distributed database like ZooKeeper or etcd for synchronization between the nodes.
+
+Zookeeper can be used to maintain multiple ranges for sequencer servers and once a server reaches its maximum range Zookeeper will assign an unused counter range to the new server.
+
+```plaintext
+/sequencer
+    /server1
+        /range1
+            /counter
+        /range2
+            /counter
+    /server2
+        /range3
+            /counter
+        /range4
+            /counter
+```
+
+- **Pros**: Guaranteed uniqueness, predictable
+- **Cons**: Requires distributed coordination
+
+#### Encoding Algorithms
+
+##### Option 1: Base62 Encoding (Recommended)
+
+Uses 62-character alphabet (`A-Z`, `a-z`, `0-9`) - URL-safe.
+
+```python
+import string
 
 def base62_encode(num):
-    chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    if num == 0:
-        return "a"
-    
+    chars = string.ascii_letters + string.digits  # a-z, A-Z, 0-9
     result = ""
     while num > 0:
         result = chars[num % 62] + result
         num //= 62
-    
-    # Pad to 7 characters if needed
-    return result.zfill(7)
+    return result or "0"
 ```
 
-### Approaches to Generate 7-Character Short URLs
+- **Character Set**: 62 characters, all URL-safe
+- **For 7-character long URLs**: 62^7 = 3.52 trillion possible combinations
 
-**Goal**: Generate 7-character short URLs that are human-readable and unique.
+##### Option 2: Base56 Encoding
 
-**Three Simple Approaches:**
+Uses 56-character alphabet by removing ambiguous characters (`I`, `l`, `1`, `o`, `O`, `0`).
 
-1. **Hash-based**: Take first 7 characters of MD5 hash with collision retry
-   - **Pros**: Fast, distributed, good randomness
-   - **Cons**: Requires database check, retry logic needed
-   - **Example**: `a1b2c3d` from MD5 hash, retry with random suffix if collision
+```python
+import string
 
-2. **Counter-based**: Use database counter converted to 7 characters base62
-   - **Pros**: Guaranteed unique, sequential
-   - **Cons**: Requires database call (or maybe we can use a counter in memory)
-   - **Example**: Counter 1000 → `g8` (padded to 7 chars)
+def base56_encode(num):
+    # Remove ambiguous characters
+    chars = (string.ascii_letters + string.digits).replace('I', '').replace('l', '').replace('1', '').replace('o', '').replace('O', '').replace('0', '')
+    result = ""
+    while num > 0:
+        result = chars[num % 56] + result
+        num //= 56
+    return result or "a"
+```
 
-**Simple Math:**
+- **Character Set**: 56 characters, no ambiguous characters
+- **For 7-character long URLs**: 56^7 = 1.5 trillion possible combinations
 
-- **7 characters**: Can hold 62^7 = ~3.5 trillion combinations for base62 encoding
-- **With 1M URLs/day**: Takes ~9,500 years to exhaust
-- **Collision probability**: Very low for practical purposes
+### Recommended Approach
+
+For a production URL shortener, use:
+
+1. **SHA-256 hashing** for collision resistance
+2. **Base62 encoding** for URL-safe, human-readable output
+3. **Collision detection** with retry logic
+4. **Fallback to counter-based** if hash collisions persist
 
 ## 6. Scalability & Reliability
 

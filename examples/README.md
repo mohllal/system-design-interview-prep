@@ -8,13 +8,13 @@ These notes serve as a refresher and collection of key points for each system de
 
 For deeper understanding, refer to the external references provided in each example.
 
-## Completed Examples
+## 📚 Completed Examples
 
 | Topic                                                                    | Key Concepts                                      |
 |--------------------------------------------------------------------------|---------------------------------------------------|
 | [Design a URL Shortening System](./01-design-a-url-shortening-system.md) | Hashing, Database Design, Caching, Load Balancing |
 
-## Future Examples
+## 🍀 Future Examples
 
 The following system designs are intended for future:
 

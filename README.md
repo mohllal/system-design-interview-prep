@@ -84,6 +84,7 @@ Proven architectural approaches for building scalable and maintainable systems.
 Real-world system design problems with comprehensive solutions.
 
 - [URL Shortening System](./examples/01-url-shortening-system.md) - Design bit.ly or tinyurl.com.
+- [OCR File Processing System](./examples/02-ocr-file-processing-system.md) - Design a system to process 100,000 files per hour using OCR to extract text from PDF documents.
 
 *More system designs coming soon...*
 

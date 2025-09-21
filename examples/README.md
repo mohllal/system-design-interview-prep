@@ -13,6 +13,7 @@ For deeper understanding, refer to the external references provided in each exam
 | Topic                                                            | Key Concepts                                      |
 |------------------------------------------------------------------|---------------------------------------------------|
 | [URL Shortening System](./01-url-shortening-system.md)           | Hashing, Database Design, Caching, Load Balancing |
+| [OCR File Processing System](./02-ocr-file-processing-system.md) | OCR, Message Queue, Auto-scaling, Storage         |
 
 ## 🍀 Future Examples
 

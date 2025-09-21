@@ -1,4 +1,4 @@
-# Design a URL Shortening System
+# URL Shortening System
 
 Design a URL shortening system like [TinyURL](https://tinyurl.com/).
 
@@ -66,32 +66,32 @@ Design a URL shortening system like [TinyURL](https://tinyurl.com/).
 
 - **Read-to-Write Ratio**: 100:1 (read-heavy system)
 - **Queries Per Second (QPS)**
-  - Write QPS: `1,000,000 URLs/day ÷ 86,400 seconds = ~12 writes/second`
-  - Read QPS: `12 writes/second × 100 = 1,200 reads/second`
-- **Peak Traffic**: `1,200 × 3 = 3,600 reads/second`
+  - Write QPS: 1,000,000 URLs/day ÷ 86,400 seconds = ~12 writes/second
+  - Read QPS: 12 writes/second × 100 = 1,200 reads/second
+- **Peak Traffic**: 1,200 × 3 = 3,600 reads/second
 
 ### Storage Estimation
 
 - **Data Size per Entity**: 500 bytes per URL entry
-- **Daily Storage Growth**: `1,000,000 × 500 bytes = 500 MB/day`
-- **Total Storage Requirements**: `500 MB/day × 365 days × 5 years = ~900 GB`
+- **Daily Storage Growth**: 1,000,000 × 500 bytes = 500 MB/day
+- **Total Storage Requirements**: 500 MB/day × 365 days × 5 years = ~900 GB
 
 ### Bandwidth Estimation
 
-- **Write Bandwidth**: `12 writes/second × 500 bytes = 6 KB/second`
-- **Read Bandwidth**: `1,200 reads/second × 500 bytes = 600 KB/second`
-- **Total Bandwidth**: `6 KB/s + 600 KB/s = 606 KB/second`
+- **Write Bandwidth**: 12 writes/second × 500 bytes = 6 KB/second
+- **Read Bandwidth**: 1,200 reads/second × 500 bytes = 600 KB/second
+- **Total Bandwidth**: 6 KB/s + 600 KB/s = 606 KB/second
 
 ### Cache Estimation
 
 - **Cache Hit Ratio**: 80% (Pareto principle, a.k.a. 80/20 rule: 20% of URLs generate 80% of traffic)
 - **Cacheable Data**: Frequently accessed URL mappings
-- **Cache Size**: `20% × 1,200 QPS × 500 bytes × 1 hour = ~4.3 MB/hour`
+- **Cache Size**: 20% × 1,200 QPS × 500 bytes × 1 hour = ~4.3 MB/hour
 
 ### Server Estimation
 
 - **Requests per Server**: 1,000 RPS capacity per server
-- **Number of Servers**: `3,600 peak RPS ÷ 1,000 RPS/server = 4 servers` (with `2x` redundancy: `8 servers`)
+- **Number of Servers**: 3,600 peak RPS ÷ 1,000 RPS/server = 4 servers (with 2x redundancy: 8 servers)
 - **Resource Requirements**: 4 CPU cores, 8GB RAM, 100GB SSD per server
 
 ## 3. Core System Components
@@ -132,7 +132,7 @@ Design a URL shortening system like [TinyURL](https://tinyurl.com/).
 POST /api/v1/urls
 
 Content-Type: application/json
-Status: 201 Created
+Response Status: 201 Created
 
 Request:
 {
@@ -152,7 +152,7 @@ Response:
 ```plaintext
 GET /{shortUrl}
 
-Status: 301 Moved Permanently
+Response Status: 301 Moved Permanently
 Redirects to: `https://www.example.com/very/long/url/path`
 ```
 
@@ -160,7 +160,7 @@ Redirects to: `https://www.example.com/very/long/url/path`
 DELETE /api/v1/urls/{shortUrl}
 
 Content-Type: application/json
-Status: 200 OK
+Response Status: 200 OK
 
 Response:
 {
@@ -172,7 +172,7 @@ Response:
 GET /api/v1/urls/{shortUrl}/info
 
 Content-Type: application/json
-Status: 200 OK
+Response Status: 200 OK
 
 Response:
 {

@@ -10,9 +10,9 @@ For deeper understanding, refer to the external references provided in each exam
 
 ## 📚 Completed Examples
 
-| Topic                                                                    | Key Concepts                                      |
-|--------------------------------------------------------------------------|---------------------------------------------------|
-| [Design a URL Shortening System](./01-design-a-url-shortening-system.md) | Hashing, Database Design, Caching, Load Balancing |
+| Topic                                                            | Key Concepts                                      |
+|------------------------------------------------------------------|---------------------------------------------------|
+| [URL Shortening System](./01-url-shortening-system.md)           | Hashing, Database Design, Caching, Load Balancing |
 
 ## 🍀 Future Examples
 
@@ -38,7 +38,7 @@ The following system designs are intended for future:
   - Key concepts: Message queues, push notifications, delivery guarantees
   - References: [Scalable Notification Service](https://blog.algomaster.io/p/design-a-scalable-notification-service)
 
-## Tips
+## 💡 Tips
 
 - **Clarify Requirements**: Ask about scale, features, and constraints
 - **Start Simple**: Begin with a basic design and iterate

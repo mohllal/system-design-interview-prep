@@ -83,7 +83,7 @@ Proven architectural approaches for building scalable and maintainable systems.
 
 Real-world system design problems with comprehensive solutions.
 
-- [URL Shortening System](./examples/01-design-a-url-shortening-system.md) - Design bit.ly or tinyurl.com
+- [URL Shortening System](./examples/01-url-shortening-system.md) - Design bit.ly or tinyurl.com.
 
 *More system designs coming soon...*
 

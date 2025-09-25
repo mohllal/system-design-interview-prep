@@ -2,20 +2,14 @@
 
 This section provides practice problems and designs for real-world systems. Each example includes key architectural decisions, trade-offs, and implementation considerations.
 
-## About These Examples
+## 📖 Contents
 
-These notes serve as a refresher and collection of key points for each system design. They are not comprehensive but focus on the most important aspects for interview preparation.
-
-For deeper understanding, refer to the external references provided in each example.
-
-## 📚 Completed Examples
-
-| Topic                                                            | Key Concepts                                      |
+| System Design Example                                            | Key Concepts                                      |
 |------------------------------------------------------------------|---------------------------------------------------|
 | [URL Shortening System](./01-url-shortening-system.md)           | Hashing, Database Design, Caching, Load Balancing |
 | [OCR File Processing System](./02-ocr-file-processing-system.md) | OCR, Message Queue, Auto-scaling, Storage         |
 
-## 🍀 Future Examples
+## 🍀 Future Examples (To be completed)
 
 The following system designs are intended for future:
 
@@ -39,9 +33,13 @@ The following system designs are intended for future:
   - Key concepts: Message queues, push notifications, delivery guarantees
   - References: [Scalable Notification Service](https://blog.algomaster.io/p/design-a-scalable-notification-service)
 
-## 💡 Tips
+## 📝 Thought Process
 
 - **Clarify Requirements**: Ask about scale, features, and constraints
-- **Start Simple**: Begin with a basic design and iterate
 - **Use Back-of-the-Envelope**: Estimate capacity and resource requirements
+- **Start Simple**: Begin with a basic design and iterate
 - **Discuss Trade-offs**: Explain the pros and cons of your design choices
+
+---
+
+💡 **Tip**: Each system example may have a "Reference Materials" section with curated external resources for deeper exploration.

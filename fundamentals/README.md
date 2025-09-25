@@ -2,7 +2,7 @@
 
 Essential building blocks for understanding distributed systems and scalable architectures.
 
-## 📖 Content Organization
+## 📖 Contents
 
 ### 🌐 Communication & Networking
 
@@ -60,4 +60,4 @@ Estimation and performance analysis techniques.
 
 ---
 
-💡 **Tip**: Each topic includes "Reference materials" sections with curated external resources for deeper exploration.
+💡 **Tip**: Each topic includes "Reference Materials" sections with curated external resources for deeper exploration.

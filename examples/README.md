@@ -6,8 +6,8 @@ This section provides practice problems and designs for real-world systems. Each
 
 | System Design Example                                            | Key Concepts                                      |
 |------------------------------------------------------------------|---------------------------------------------------|
-| [URL Shortening System](./01-url-shortening-system.md)           | Hashing, Database Design, Caching, Load Balancing |
-| [OCR File Processing System](./02-ocr-file-processing-system.md) | OCR, Message Queue, Auto-scaling, Storage         |
+| [URL Shortening System](./01-url-shortening-system.md)           | Hashing, Database design, Caching, Load balancing |
+| [OCR File Processing System](./02-ocr-file-processing-system.md) | OCR, Message queue, Auto-scaling, Storage         |
 
 ## 🍀 Future Examples (To be completed)
 

@@ -23,7 +23,7 @@
   "line-length": {
     "strict": true,
     "code_blocks": false,
-    "line_length": 180
+    "line_length": 210
   },
   "link-image-style": {
     "collapsed": false,

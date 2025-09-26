@@ -60,4 +60,4 @@ Estimation and performance analysis techniques.
 
 ---
 
-💡 **Tip**: Each topic includes "Reference Materials" sections with curated external resources for deeper exploration.
+💡 **Tip**: Each topic includes a "Reference Materials" section with curated external resources for deeper exploration.

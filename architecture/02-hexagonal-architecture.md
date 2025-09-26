@@ -1,210 +1,309 @@
 # Hexagonal Architecture (Ports and Adapters)
 
-Hexagonal Architecture, also known as the **Ports and Adapters** architecture, is an architectural style that aims to make the application core independent of external systems (databases, APIs, user interfaces, etc.) by defining clear boundaries between internal logic and outside dependencies.
+Hexagonal architecture, also known as the **Ports and Adapters** architecture, isolates the core business logic from external concerns by defining boundaries between internal logic and external systems.
+
+This creates applications that are technology-agnostic, highly testable, and adaptable to change.
+
+## Core Concept
+
+The architecture gets its name from the hexagonal shape used to represent the application core, though the number of sides is arbitrary.
 
 The main components are:
 
-- **Core/Domain**: The business logic of the application, which is agnostic of how it's being used or accessed.
-- **Ports**: Interfaces that define how the external world interacts with the core (input/driving/primary ports) and how the core interacts with external systems (output/driven/secondary ports).
-- **Adapters**: Implementations of the ports. These can be user interfaces (e.g., web controllers) or external system integrations (e.g., database repositories, external API clients).
+- **Core/Domain**: The business logic of the application, which is agnostic of how it's being used or accessed
+- **Ports**: Interfaces that define how the external world interacts with the core (input/driving/primary ports) and how the core interacts with external systems (output/driven/secondary ports)
+- **Adapters**: Implementations of the ports. These can be user interfaces or external system integrations (e.g., database repositories, external API clients)
 
-## Driving Side vs Driven Side
+```mermaid
+graph TD
+    A[Web UI] --> B[HTTP Adapter]
+    C[CLI] --> D[Console Adapter]
+    E[Tests] --> F[Test Adapter]
 
-### Driving Side
+    B --> G[Port: User Management]
+    D --> G
+    F --> G
 
-1. Driving (or primary) actors are responsible for initiating interactions with the system. For example, a driving adapter could be a controller that receives input (e.g., from a user) and forwards it to the Application Core through a Port.
+    G --> H[Application Core<br/>Business Logic]
 
-2. On the Driving side, the adapter depends on the port, which is implemented by the Application Service. The adapter doesn't know the specifics of who will handle its requests; it only knows the methods guaranteed by the port's interface. In this way, the adapter relies on an abstraction.
+    H --> I[Port: User Repository]
+    H --> J[Port: Email Service]
 
-### Driven Side
+    I --> K[Database Adapter]
+    I --> L[In-Memory Adapter]
+    J --> M[SMTP Adapter]
+    J --> N[Mock Email Adapter]
 
-1. Driven (or secondary) actors, on the other hand, are triggered into action by the Application Core. For instance, a database adapter acts as a driven actor when the Application invokes it to retrieve or persist data.
-
-2. On the Driven side, the Application Service depends on the port, while the adapter implements the port's interface. This setup inverts the dependency, as the low-level adapter (e.g., a database repository) must conform to the abstraction defined in the application's core, which is considered the higher-level component.
-
-## Pros and Cons
-
-### Pros
-
-1. Decoupling the Core from Infrastructure
-   - The business logic is isolated from external concerns like databases, messaging systems, and UI frameworks.
-   - The application can easily switch external systems (like changing databases) without modifying the core business logic.
-
-2. Testability
-   - By isolating the core from the external dependencies, it becomes easier to unit test the core business logic independently.
-   - Mock implementations of the ports can be used to simulate interactions with external systems during tests.
-
-3. Flexibility
-   - Multiple interfaces (adapters) can be plugged into the core for various use cases (e.g., HTTP APIs, command-line interfaces, event-driven systems).
-   - The architecture can evolve and scale by adding new adapters for different platforms without changing the core logic.
-
-4. Maintenance
-   - Ports and Adapters are interfaces, which encourages a contract-based approach to development, allowing for better extension and maintenance.
-
-### Cons
-
-1. Implementation Overhead:
-   - Designing and implementing the necessary ports and adapters requires extra effort and time.
-
-## Example
-
-This example represents a simple bank account system. It demonstrates how the core business logic (Domain), ports (interfaces), and adapters (implementations) interact within the Hexagonal Architecture.
-
-### Domain (Core Business Logic)
-
-The domain layer represents the business logic, which is the core of the application. It is entirely independent of external systems like databases or user interfaces. In this case, the `BankAccount` class encapsulates the core logic for managing account balances.
-
-```typescript
-class BankAccount {
-    private balance: number;
-
-    constructor(initialBalance: number = 0) {
-        this.balance = initialBalance;
-    }
-
-    // Method to deposit money
-    deposit(amount: number): void {
-        if (amount <= 0) {
-            throw new Error("Invalid amount to deposit");
-        }
-        this.balance += amount;
-    }
-
-    // Method to withdraw money
-    withdraw(amount: number): void {
-        if (amount <= 0) {
-            throw new Error("Invalid amount to withdraw");
-        }
-        if (this.balance < amount) {
-            throw new Error("Insufficient funds");
-        }
-        this.balance -= amount;
-    }
-
-    // Method to check current balance
-    getBalance(): number {
-        return this.balance;
-    }
-}
+    K --> O[(Database)]
+    M --> P[Email Server]
 ```
 
-### Ports
+## Architecture Components
 
-#### Input Port (Interface for Handling Commands)
+### Application Core (Hexagon Center)
 
-The input port defines the operations that the external world can invoke. It is implemented by the application service layer, which uses the core business logic. This interface allows the application to be used by different adapters (e.g., a REST API, command-line interface).
+The business logic that defines what your application does, independent of how it's implemented or accessed.
 
-```typescript
-interface IBankAccountService {
-    deposit(accountId: number, amount: number): void;
-    withdraw(accountId: number, amount: number): void;
-    checkBalance(accountId: number): number;
-}
+```python
+class User:
+    def __init__(self, email, name):
+        if not self._is_valid_email(email):
+            raise InvalidEmailError(f"Invalid email: {email}")
+        self.email = email
+        self.name = name
+        self.id = None
+        self.created_at = datetime.now()
+
+    def _is_valid_email(self, email):
+        return "@" in email and len(email) > 3
+
+    def change_email(self, new_email):
+        if not self._is_valid_email(new_email):
+            raise InvalidEmailError(f"Invalid email: {new_email}")
+        old_email = self.email
+        self.email = new_email
+        return UserEmailChanged(self.id, old_email, new_email)
+
+class UserService:
+    def __init__(self, user_repository, email_service):
+        self.user_repository = user_repository
+        self.email_service = email_service
+
+    def create_user(self, email, name):
+        if self.user_repository.exists_by_email(email):
+            raise UserAlreadyExistsError(f"User with email {email} already exists")
+
+        user = User(email, name)
+        saved_user = self.user_repository.save(user)
+        self.email_service.send_welcome_email(user.email, user.name)
+        return saved_user
 ```
 
-#### Output Port (Interface for Interacting with the Database)
+### Ports (Interfaces)
 
-The output port defines how the application interacts with external systems like a database or an API. The application service relies on this interface to retrieve and store data without being tightly coupled to any specific database technology.
+Contracts that define how the application core interacts with the outside world. There are two types:
 
-```typescript
-interface IBankAccountRepository {
-    findAccountById(accountId: number): BankAccount;
-    updateAccount(account: BankAccount): void;
-}
+#### Primary Ports (Driving/Input)
+
+Define operations that external actors can perform on the application.
+
+```python
+from abc import ABC, abstractmethod
+
+class UserManagementPort(ABC):
+    @abstractmethod
+    def create_user(self, email: str, name: str) -> User:
+        pass
+
+    @abstractmethod
+    def get_user(self, user_id: int) -> User:
+        pass
+
+    @abstractmethod
+    def update_user_email(self, user_id: int, new_email: str) -> User:
+        pass
 ```
 
-### Application Service (Implements Input Port)
+#### Secondary Ports (Driven/Output)
 
-The application service acts as the bridge between the input port and the core business logic. It handles requests coming from external systems (via the input port) and uses the core logic to process them.
+Define operations that the application core needs from external systems.
 
-```typescript
-class BankAccountService implements IBankAccountService {
-    private repository: IBankAccountRepository;
+```python
+class UserRepositoryPort(ABC):
+    @abstractmethod
+    def save(self, user: User) -> User:
+        pass
 
-    constructor(repository: IBankAccountRepository) {
-        this.repository = repository;
-    }
+    @abstractmethod
+    def find_by_id(self, user_id: int) -> User:
+        pass
 
-    deposit(accountId: number, amount: number): void {
-        const account = this.repository.findAccountById(accountId);
-        account.deposit(amount);
-        this.repository.updateAccount(account);
-    }
+    @abstractmethod
+    def exists_by_email(self, email: str) -> bool:
+        pass
 
-    withdraw(accountId: number, amount: number): void {
-        const account = this.repository.findAccountById(accountId);
-        account.withdraw(amount);
-        this.repository.updateAccount(account);
-    }
-
-    checkBalance(accountId: number): number {
-        const account = this.repository.findAccountById(accountId);
-        return account.getBalance();
-    }
-}
+class EmailServicePort(ABC):
+    @abstractmethod
+    def send_welcome_email(self, email: str, name: str) -> None:
+        pass
 ```
 
-### Adapters
+### Adapters (Implementations)
 
-#### Inbound Adapter (HTTP Controller)
+Concrete implementations that connect ports to specific technologies or external systems.
 
-An inbound adapter handles external input (such as an HTTP request) and delegates it to the application service. It conforms to the input port's interface.
+#### Primary Adapters (Driving)
 
-```typescript
-class HTTPBankAccountController {
-    private service: IBankAccountService;
+Handle input from external sources and translate it to core operations.
 
-    constructor(service: IBankAccountService) {
-        this.service = service;
-    }
+```python
+# HTTP/REST Adapter
+class UserController:
+    def __init__(self, user_service: UserManagementPort):
+        self.user_service = user_service
 
-    // Simulating an HTTP POST request to deposit money
-    deposit(req: { accountId: number, amount: number }): void {
-        this.service.deposit(req.accountId, req.amount);
-        console.log(`Deposited ${req.amount} into account ${req.accountId}`);
-    }
+    def create_user_endpoint(self, request):
+        try:
+            data = request.json
+            user = self.user_service.create_user(data['email'], data['name'])
+            return {"status": "success", "user_id": user.id}, 201
+        except (UserAlreadyExistsError, InvalidEmailError) as e:
+            return {"status": "error", "message": str(e)}, 400
 
-    // Simulating an HTTP POST request to withdraw money
-    withdraw(req: { accountId: number, amount: number }): void {
-        this.service.withdraw(req.accountId, req.amount);
-        console.log(`Withdrew ${req.amount} from account ${req.accountId}`);
-    }
+# CLI Adapter
+class UserCLI:
+    def __init__(self, user_service: UserManagementPort):
+        self.user_service = user_service
 
-    // Simulating an HTTP GET request to check balance
-    checkBalance(req: { accountId: number }): number {
-        return this.service.checkBalance(req.accountId);
-    }
-}
+    def handle_create_command(self, args):
+        try:
+            user = self.user_service.create_user(args.email, args.name)
+            print(f"User created successfully: {user.id}")
+        except Exception as e:
+            print(f"Error: {e}")
 ```
 
-#### Outbound Adapter (Database Repository)
+#### Secondary Adapters (Driven)
 
-An outbound adapter implements the output port, interacting with the actual persistence mechanism (e.g., a database). It conforms to the output port's interface.
+Implement external system integrations required by the application core.
 
-```typescript
-class BankAccountDatabaseRepository implements IBankAccountRepository {
-    private db: any; // Simulating a database connection
+```python
+# Database Adapter
+class DatabaseUserRepository(UserRepositoryPort):
+    def __init__(self, database):
+        self.db = database
 
-    constructor(databaseConnection: any) {
-        this.db = databaseConnection;
-    }
+    def save(self, user: User) -> User:
+        if user.id is None:
+            user.id = self.db.insert('users', {
+                'email': user.email,
+                'name': user.name,
+                'created_at': user.created_at
+            })
+        else:
+            self.db.update('users', user.id, {
+                'email': user.email,
+                'name': user.name
+            })
+        return user
 
-    findAccountById(accountId: number): BankAccount {
-        // Simulating a database query
-        const accountData = this.db.query(`SELECT * FROM accounts WHERE id = ${accountId}`);
-        return new BankAccount(accountData.balance);
-    }
+    def find_by_id(self, user_id: int) -> User:
+        row = self.db.query_one('SELECT * FROM users WHERE id = ?', [user_id])
+        if not row:
+            raise UserNotFoundError(f"User {user_id} not found")
+        user = User(row['email'], row['name'])
+        user.id = row['id']
+        return user
 
-    updateAccount(account: BankAccount): void {
-        // Simulating a database update
-        this.db.execute(`UPDATE accounts SET balance = ${account.getBalance()} WHERE id = ${accountId}`);
-    }
+# Email Adapter
+class SMTPEmailService(EmailServicePort):
+    def __init__(self, smtp_server, port, username, password):
+        self.smtp_server = smtp_server
+        self.port = port
+        self.username = username
+        self.password = password
+
+    def send_welcome_email(self, email: str, name: str) -> None:
+        subject = "Welcome!"
+        body = f"Hello {name}, welcome to our platform!"
+        # SMTP implementation details...
 ```
 
-## References
+## Dependency Inversion Principle
 
-- [Hexagonal architecture](https://alistair.cockburn.us/hexagonal-architecture/)
-- [Ready for changes with Hexagonal Architecture](https://netflixtechblog.com/ready-for-changes-with-hexagonal-architecture-b315ec967749)
-- [Hexagonal Architecture, there are always two sides to every story](https://medium.com/ssense-tech/hexagonal-architecture-there-are-always-two-sides-to-every-story-bc0780ed7d9c)
-- [Hexagonal architecture: the what, why and when?](https://www.youtube.com/watch?v=qGp66Oc3zTg&ab_channel=YanCui)
-- [Hexagonal Architecture (All You Need to Know)](https://www.youtube.com/watch?v=k_GkYMd8Ouc&ab_channel=GuiFerreira)
+The key insight is that dependencies point inward toward the core, and the core depends only on abstractions (ports), never on concrete implementations.
+
+```mermaid
+graph LR
+    A[HTTP Controller] ---> B[UserManagementPort]
+    C[CLI Interface] ---> B[UserManagementPort]
+    B --> D[UserService]
+    D ---> G[UserRepositoryPort]
+    D ---> F[EmailServicePort]
+
+    H[DatabaseAdapter] --> G
+    I[SMTPAdapter] --> F
+```
+
+This creates **dependency inversion**: high-level modules (core) don't depend on low-level modules (adapters). Both depend on abstractions (ports).
+
+## Benefits and Trade-offs
+
+### Benefits
+
+- **Technology Independence**: Business logic separated from implementation details, enabling easy technology migration
+- **Flexibility**: Multiple interfaces can use the same core logic without modification
+- **Clear Boundaries**: Explicit contracts between core and external systems improve maintainability
+- **Adaptability**: Easy to add new integrations and support different deployment configurations
+
+### Trade-offs
+
+- **More Abstractions**: Requires additional interfaces and upfront design effort
+- **Complexity**: Can seem over-engineered for simple applications
+- **Maintenance**: Requires discipline to maintain clear boundaries
+
+## When to Use Hexagonal Architecture
+
+### Ideal Scenarios
+
+- **Changing applications** where technology changes are expected
+- **Complex business domains** requiring clear separation of concerns
+- **Multiple interfaces** (web, mobile, CLI, API) for the same functionality
+- **Integration-heavy applications** connecting to multiple external systems
+
+### Consider Alternatives When
+
+- Building simple CRUD applications with minimal business logic
+- Working with well-established, stable technology stacks
+
+## Common Anti-Patterns
+
+### Leaky Abstractions
+
+```python
+# Anti-pattern ❌: Port exposing implementation details
+class UserRepositoryPort(ABC):
+    @abstractmethod
+    def execute_sql(self, sql: str) -> List[Dict]:  # Leaks SQL details
+        pass
+
+# Better ✅: Domain-focused interface
+class UserRepositoryPort(ABC):
+    @abstractmethod
+    def find_active_users_by_department(self, department: str) -> List[User]:
+        pass
+```
+
+### Anemic Ports
+
+```python
+# Anti-pattern ❌: Generic CRUD ports
+class GenericRepository(ABC):
+    @abstractmethod
+    def create(self, entity): pass
+
+    @abstractmethod
+    def read(self, id): pass
+
+# Better ✅: Domain-specific ports
+class UserRepositoryPort(ABC):
+    @abstractmethod
+    def save_new_user(self, user: User) -> User:
+        pass
+
+    @abstractmethod
+    def find_user_by_email(self, email: str) -> User:
+        pass
+```
+
+### Fat Adapters
+
+Avoid putting business logic in adapters. Keep them focused on translation and integration concerns.
+
+## Reference Materials
+
+- [The Hexagonal (Ports & Adapters) Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
+- [Ports and Adapters Pattern](https://jmgarridopaz.github.io/content/hexagonalarchitecture.html)
+- [Ready for Changes with Hexagonal Architecture](https://netflixtechblog.com/ready-for-changes-with-hexagonal-architecture-b315ec967749)
+- [Hexagonal Architecture: The What, Why and When](https://www.youtube.com/watch?v=qGp66Oc3zTg)
+- [Implementing Hexagonal Architecture](https://medium.com/@matiasvarela/hexagonal-architecture-in-go-cfd4e436faa3)

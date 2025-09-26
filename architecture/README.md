@@ -57,3 +57,7 @@ Patterns for handling failures and maintaining system reliability in distributed
 - [Microservices.io](https://microservices.io/)
 - [Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/)
 - [DDD Community](https://github.com/ddd-crew)
+
+---
+
+💡 **Tip**: Each architectural pattern includes a "Reference Materials" section with curated external resources for deeper exploration.

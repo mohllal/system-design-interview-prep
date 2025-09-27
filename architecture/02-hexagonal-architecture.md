@@ -10,9 +10,9 @@ The architecture gets its name from the hexagonal shape used to represent the ap
 
 The main components are:
 
-- **Core/Domain**: The business logic of the application, which is agnostic of how it's being used or accessed
-- **Ports**: Interfaces that define how the external world interacts with the core (input/driving/primary ports) and how the core interacts with external systems (output/driven/secondary ports)
-- **Adapters**: Implementations of the ports. These can be user interfaces or external system integrations (e.g., database repositories, external API clients)
+- **Core/Domain:** The business logic of the application, which is agnostic of how it's being used or accessed
+- **Ports:** Interfaces that define how the external world interacts with the core (input/driving/primary ports) and how the core interacts with external systems (output/driven/secondary ports)
+- **Adapters:** Implementations of the ports. These can be user interfaces or external system integrations (e.g., database repositories, external API clients)
 
 ```mermaid
 graph TD
@@ -225,22 +225,22 @@ graph LR
     I[SMTPAdapter] --> F
 ```
 
-This creates **dependency inversion**: high-level modules (core) don't depend on low-level modules (adapters). Both depend on abstractions (ports).
+This creates **dependency inversion:** high-level modules (core) don't depend on low-level modules (adapters). Both depend on abstractions (ports).
 
 ## Benefits and Trade-offs
 
 ### Benefits
 
-- **Technology Independence**: Business logic separated from implementation details, enabling easy technology migration
-- **Flexibility**: Multiple interfaces can use the same core logic without modification
-- **Clear Boundaries**: Explicit contracts between core and external systems improve maintainability
-- **Adaptability**: Easy to add new integrations and support different deployment configurations
+- **Technology Independence:** Business logic separated from implementation details, enabling easy technology migration
+- **Flexibility:** Multiple interfaces can use the same core logic without modification
+- **Clear Boundaries:** Explicit contracts between core and external systems improve maintainability
+- **Adaptability:** Easy to add new integrations and support different deployment configurations
 
 ### Trade-offs
 
-- **More Abstractions**: Requires additional interfaces and upfront design effort
-- **Complexity**: Can seem over-engineered for simple applications
-- **Maintenance**: Requires discipline to maintain clear boundaries
+- **More Abstractions:** Requires additional interfaces and upfront design effort
+- **Complexity:** Can seem over-engineered for simple applications
+- **Maintenance:** Requires discipline to maintain clear boundaries
 
 ## When to Use Hexagonal Architecture
 

@@ -22,9 +22,9 @@ graph TD
 
 ### Presentation Layer
 
-- **Purpose**: Manages user interfaces and external communication
-- **Responsibilities**: Request handling, response formatting, input validation
-- **Examples**: REST controllers, web pages, mobile apps, CLI interfaces
+- **Purpose:** Manages user interfaces and external communication
+- **Responsibilities:** Request handling, response formatting, input validation
+- **Examples:** REST controllers, web pages, mobile apps, CLI interfaces
 
 ```python
 class UserController:
@@ -41,9 +41,9 @@ class UserController:
 
 ### Application Layer
 
-- **Purpose**: Orchestrates business workflows and coordinates between layers
-- **Responsibilities**: Transaction management, security, workflow coordination
-- **Examples**: Application services, use case handlers, facade patterns
+- **Purpose:** Orchestrates business workflows and coordinates between layers
+- **Responsibilities:** Transaction management, security, workflow coordination
+- **Examples:** Application services, use case handlers, facade patterns
 
 ```python
 class UserService:
@@ -60,9 +60,9 @@ class UserService:
 
 ### Domain Layer
 
-- **Purpose**: Contains core business rules and domain logic
-- **Responsibilities**: Business rules, domain entities, business validations
-- **Examples**: Domain models, business rules, domain services
+- **Purpose:** Contains core business rules and domain logic
+- **Responsibilities:** Business rules, domain entities, business validations
+- **Examples:** Domain models, business rules, domain services
 
 ```python
 class User:
@@ -86,9 +86,9 @@ class User:
 
 ### Data Layer
 
-- **Purpose**: Manages data persistence and retrieval
-- **Responsibilities**: Database operations, data mapping, external data sources
-- **Examples**: Repository implementations, ORM configurations, data access objects
+- **Purpose:** Manages data persistence and retrieval
+- **Responsibilities:** Database operations, data mapping, external data sources
+- **Examples:** Repository implementations, ORM configurations, data access objects
 
 ```python
 class UserRepository:
@@ -183,18 +183,18 @@ Layers can bypass intermediate layers for performance optimizations.
 
 ### Benefits
 
-- **Clear Separation**: Each layer has distinct, well-defined responsibilities
-- **Maintainability**: Changes in one layer rarely affect others
-- **Testability**: Layers can be tested independently through mocking
-- **Reusability**: Business logic can be reused across different interfaces
-- **Team Structure**: Different teams can work on different layers
+- **Clear Separation:** Each layer has distinct, well-defined responsibilities
+- **Maintainability:** Changes in one layer rarely affect others
+- **Testability:** Layers can be tested independently through mocking
+- **Reusability:** Business logic can be reused across different interfaces
+- **Team Structure:** Different teams can work on different layers
 
 ### Challenges
 
-- **Performance Overhead**: Multiple layer traversals can introduce overhead
-- **Over-Engineering**: Simple operations may become unnecessarily complex
-- **Anemic Models**: Risk of putting all logic in services, leaving domain objects as data containers
-- **Rigid Structure**: Can be inflexible for rapidly changing requirements
+- **Performance Overhead:** Multiple layer traversals can introduce overhead
+- **Over-Engineering:** Simple operations may become unnecessarily complex
+- **Anemic Models:** Risk of putting all logic in services, leaving domain objects as data containers
+- **Rigid Structure:** Can be inflexible for rapidly changing requirements
 
 ## Guidelines
 
@@ -257,8 +257,8 @@ class LoggingUserService:
 
 ### Ideal Scenarios
 
-- **Traditional Business Applications**: CRUD-heavy applications with clear business workflows
-- **Stable Business Domains**: Well-understood business domains with predictable changes
+- **Traditional Business Applications:** CRUD-heavy applications with clear business workflows
+- **Stable Business Domains:** Well-understood business domains with predictable changes
 
 ### Consider Alternatives When
 

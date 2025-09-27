@@ -307,17 +307,17 @@ graph TD
 
 ### Benefits
 
-- **Scalability**: services can scale independently, and event queues can buffer load spikes.
-- **Loose coupling**: services communicate with each other without needing to know the specifics of their implementation.
-- **Fault tolerance and resilience**: since services are decoupled, so failures in one service do not directly impact others.
-- **Flexibility**: easy to add new event consumers without modifying existing producers.
-- **Asynchronous processing**: improves performance by handling tasks asynchronously.
+- **Scalability:** services can scale independently, and event queues can buffer load spikes.
+- **Loose coupling:** services communicate with each other without needing to know the specifics of their implementation.
+- **Fault tolerance and resilience:** since services are decoupled, so failures in one service do not directly impact others.
+- **Flexibility:** easy to add new event consumers without modifying existing producers.
+- **Asynchronous processing:** improves performance by handling tasks asynchronously.
 
 ### Challenges
 
-- **Complexity**: increased architectural complexity and need for reliable event delivery.
-- **Losing sight of that larger-scale flow**: it can be hard see such a flow as it's not explicit in any program text.
-- **Event ordering and consistency**: events may arrive out of order, and it can be challenging to maintain data consistency across services.
+- **Complexity:** increased architectural complexity and need for reliable event delivery.
+- **Losing sight of that larger-scale flow:** it can be hard see such a flow as it's not explicit in any program text.
+- **Event ordering and consistency:** events may arrive out of order, and it can be challenging to maintain data consistency across services.
 
 ```mermaid
 sequenceDiagram

@@ -60,4 +60,4 @@ Patterns for handling failures and maintaining system reliability in distributed
 
 ---
 
-💡 **Tip**: Each architectural pattern includes a "Reference Materials" section with curated external resources for deeper exploration.
+💡 **Tip:** Each architectural pattern includes a "Reference Materials" section with curated external resources for deeper exploration.

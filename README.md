@@ -27,6 +27,7 @@ Essential building blocks for understanding distributed systems and scalable arc
 - [Client-Server Model](./fundamentals/01-client-server.md) - Request-response patterns, DNS, REST vs RPC vs GraphQL
 - [Network Protocols](./fundamentals/02-network-protocols.md) - TCP/IP stack, browser request flow, protocol trade-offs  
 - [Latency and Throughput](./fundamentals/03-latency-and-throughput.md) - Performance metrics, optimization strategies
+- [API Design](./fundamentals/20-api-design.md) - RESTful design, versioning strategies, deprecation patterns
 
 ### Reliability & Performance  
 

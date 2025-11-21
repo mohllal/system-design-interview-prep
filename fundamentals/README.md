@@ -13,6 +13,7 @@ Core concepts for how systems communicate and exchange data.
 | [Client-Server Model](./01-client-server.md)             | Request-response patterns, DNS resolution, REST vs RPC vs GraphQL |
 | [Network Protocols](./02-network-protocols.md)           | TCP/IP stack, Browser request flow, Protocol trade-offs           |
 | [Latency and Throughput](./03-latency-and-throughput.md) | Performance metrics, Optimization strategies, Bottleneck analysis |
+| [API Design](./20-api-design.md)                         | RESTful design, Versioning strategies, Deprecation patterns       |
 
 ### 🛡️ Reliability & Performance
 

@@ -43,3 +43,16 @@ The following system designs are intended for future:
 ---
 
 💡 **Tip**: Each system example may have a "Reference Materials" section with curated external resources for deeper exploration.
+
+- <https://www.youtube.com/watch?v=jPKTo1iGQiE> - Design Youtube
+- <https://www.youtube.com/watch?v=IUrQ5_g3XKs> - Design YouTube
+- <https://www.youtube.com/watch?v=bUHFg8CZFws> - System Design Interview – Step By Step Guide
+- <https://www.youtube.com/watch?v=XbkjEX-jgj0> - Top K Leaderboard
+- <https://www.youtube.com/watch?v=olfaBgJrUBI> - Payment System
+- <https://www.youtube.com/watch?v=rT4sS4l51PY> - Amazon Payment Gateway
+- <https://www.youtube.com/watch?v=7MXV7RfNtv0> - Global Payment Processing
+- <https://www.youtube.com/watch?v=m6DtqSb1BDM> - Build a robust Payments service using Idempotency Keys
+- <https://www.youtube.com/watch?v=iUU4O1sWtJA> - Design Bitly
+- <https://www.youtube.com/watch?v=qSJAvd5Mgio> - Design a URL Shortener (Bitly)
+- <https://medium.com/algomaster-io/system-design-was-hard-until-i-learned-these-30-concepts-78042ff99cae> - System Design was HARD until I Learned these 30 Concepts
+- <https://itnext.io/scaling-distributed-counters-designing-a-view-count-system-for-100k-rps-0567f6804900> - Scaling Distributed Counters: Designing a View Count System for 100K+ RPS

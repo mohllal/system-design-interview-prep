@@ -2,63 +2,73 @@
 
 Essential building blocks for understanding distributed systems and scalable architectures.
 
-## 📖 Contents
+## Contents
 
-### 🌐 Communication & Networking
+### Communication & Networking
 
 Core concepts for how systems communicate and exchange data.
 
-| Topic                                                    | Key Concepts                                                      |
-|----------------------------------------------------------|-------------------------------------------------------------------|
-| [Client-Server Model](./01-client-server.md)             | Request-response patterns, DNS resolution, REST vs RPC vs GraphQL |
-| [Network Protocols](./02-network-protocols.md)           | TCP/IP stack, Browser request flow, Protocol trade-offs           |
-| [Latency and Throughput](./03-latency-and-throughput.md) | Performance metrics, Optimization strategies, Bottleneck analysis |
-| [API Design](./20-api-design.md)                         | RESTful design, Versioning strategies, Deprecation patterns       |
+| Topic                                                              | Key Concepts                                                      |
+|--------------------------------------------------------------------|-------------------------------------------------------------------|
+| [Client-Server Model](./01-client-server.md)                       | Request-response patterns, DNS resolution, service roles          |
+| [Network Protocols](./02-network-protocols.md)                     | TCP/IP stack, browser request flow, protocol trade-offs           |
+| [Latency and Throughput](./03-latency-and-throughput.md)           | Performance metrics, optimization strategies, bottleneck analysis |
+| [HTTP Versions](./04-http-versions.md)                             | HTTP/1.0 to HTTP/3, QUIC, performance trade-offs                  |
+| [REST API](./05-rest-api.md)                                       | Resource modeling, HTTP semantics, versioning                     |
+| [Communication Patterns](./06-communication-patterns.md)           | REST, RPC, GraphQL, polling, streaming, messaging                 |
+| [Real-Time Communication](./07-realtime-communication-patterns.md) | Short/long polling, SSE, WebSockets, live update trade-offs       |
 
-### 🛡️ Reliability & Performance
+### Reliability & Performance
 
 Strategies for building resilient and performant systems.
 
 | Topic                                                                | Key Concepts                                       |
 |----------------------------------------------------------------------|----------------------------------------------------|
-| [Availability and Reliability](./04-availability-and-reliability.md) | Uptime targets, Redundancy patterns                |
-| [Caching](./05-caching.md)                                           | Cache levels and strategies, invalidation patterns |
-| [Proxies](./06-proxies.md)                                           | Forward/reverse proxies, CDNs, Load balancers      |
-| [Load Balancing](./07-load-balancing.md)                             | Load Balancing algorithms, Health checks, Failover |
+| [Availability](./08-availability.md)                                 | SLOs, uptime targets, failover patterns            |
+| [Reliability](./09-reliability.md)                                   | Correctness over time, failure handling patterns   |
+| [Scalability](./10-scalability.md)                                   | Scale-up/out, bottlenecks, scaling patterns        |
+| [Caching](./11-caching.md)                                           | Cache levels and strategies, invalidation patterns |
+| [Proxies](./12-proxies.md)                                           | Forward/reverse proxies, CDNs, load balancers      |
+| [Load Balancing](./13-load-balancing.md)                             | Load balancing algorithms, health checks, failover |
+| [Resilience](./14-resilience.md)                                     | Failure isolation, degradation, recovery           |
+| [Observability](./15-observability.md)                               | Metrics, logs, traces, alerts, telemetry design    |
+| [Concurrency Control](./24-concurrency-control.md)                   | Threads, locks, semaphores, deadlocks              |
 
-### 💾 Data & Storage
+### Data & Storage
 
 Database concepts and data management strategies.
 
-| Topic                                                        | Key Concepts                                 |
-|--------------------------------------------------------------|----------------------------------------------|
-| [Hashing](./08-hashing.md)                                   | Consistent hashing, Partitioning strategies  |
-| [Relational Databases](./09-relational-databases.md)         | ACID properties, SQL optimization, Indexing  |
-| [Non-Relational Databases](./10-non-relational-databases.md) | NoSQL types, CAP theorem trade-offs          |
-| [Database Replication](./11-database-replication.md)         | Master-slave, Master-master patterns         |
-| [Database Sharding](./12-database-sharding.md)               | Horizontal partitioning, Shard key selection |
+| Topic                                                                    | Key Concepts                                                 |
+|--------------------------------------------------------------------------|--------------------------------------------------------------|
+| [Hashing](./16-hashing.md)                                               | Consistent hashing, partitioning strategies                  |
+| [Bloom Filters](./17-bloom-filters.md)                                   | Membership checks, false positives                           |
+| [Checksums](./18-checksums.md)                                           | Data integrity, hash verification, error detection           |
+| [Relational Databases](./19-relational-databases.md)                     | ACID properties, SQL optimization, indexing                  |
+| [Non-Relational Databases](./20-non-relational-databases.md)             | NoSQL types, CAP theorem trade-offs                          |
+| [Database Replication](./21-database-replication.md)                     | Master-slave, master-master patterns                         |
+| [Database Sharding](./22-database-sharding.md)                           | Horizontal partitioning, shard key selection                 |
+| [Database Concurrency Control](./23-database-concurrency-control.md)     | Isolation levels, anomalies, locking strategies              |
 
-### 🔗 Distributed Systems
+### Distributed Systems
 
-Advanced concepts for distributed and decentralized architectures.
+Core concepts for coordination and consistency in distributed architectures.
 
 | Topic                                                      | Key Concepts                                   |
 |------------------------------------------------------------|------------------------------------------------|
-| [Leader Election](./13-leader-election.md)                 | Consensus algorithms, Coordination patterns    |
-| [Peer-to-Peer Networks](./14-peer-to-peer-networks.md)     | Decentralized architectures, DHT               |
-| [Rate Limiting](./15-rate-limiting.md)                     | Traffic control, Rate limiting algorithms      |
-| [Pub/Sub](./16-pub-sub.md)                                 | Messaging patterns, Event-Driven architectures |
-| [MapReduce](./17-mapreduce.md)                             | Distributed computing paradigm                 |
-| [CAP and PACELC Theorems](./18-cap-and-pacelc-theorems.md) | Distributed systems constraints                |
+| [CAP and PACELC Theorems](./25-cap-and-pacelc-theorems.md) | Distributed systems constraints                |
+| [Leader Election](./26-leader-election.md)                 | Leader-follower pattern, failover, leases      |
+| [Consensus](./27-consensus.md)                             | Quorum, Raft vs Paxos, consistency guarantees  |
+| [Pub/Sub](./28-pub-sub.md)                                 | Messaging patterns, event-driven architectures |
+| [Rate Limiting](./29-rate-limiting.md)                     | Traffic control, rate limiting algorithms      |
 
-### 📊 Capacity Planning
+### Capacity Planning
 
 Estimation and performance analysis techniques.
 
 | Topic                                                                          | Key Concepts                               |
 |--------------------------------------------------------------------------------|--------------------------------------------|
-| [Back-of-the-Envelope Calculations](./19-back-of-the-envelope-calculations.md) | Estimation techniques, Performance numbers |
+| [Back-of-the-Envelope Calculations](./30-back-of-the-envelope-calculations.md) | Estimation techniques, performance numbers |
 
 ---
 
-💡 **Tip**: Each topic includes a "Reference Materials" section with curated external resources for deeper exploration.
+For deeper dives into authentication, multi-region replication, MapReduce, and P2P networks, see [Advanced Topics](../advanced/README.md).

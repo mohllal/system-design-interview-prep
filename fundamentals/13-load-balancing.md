@@ -11,18 +11,6 @@ Load balancing distributes incoming requests across multiple servers to prevent 
 
 ## Scaling Strategies
 
-Understanding scaling approaches helps determine when load balancing becomes necessary.
-
-```mermaid
-graph LR
-    A[Growing Traffic] --> B{Scaling Strategy}
-    B --> C[Vertical Scaling<br/>Scale Up]
-    B --> D[Horizontal Scaling<br/>Scale Out]
-    
-    C --> E[Single Server<br/>More CPU/RAM/Storage]
-    D --> F[Multiple Servers<br/>Load Balancer Required]
-```
-
 ### Vertical Scaling (Scale Up)
 
 **Approach**: Add more compute resources to existing machines
@@ -140,7 +128,23 @@ sequenceDiagram
 
 Load balancers can be implemented at different layers and using various technologies.
 
-### By Implementation
+### By Decision Layer
+
+**Layer 4 Load Balancers (Transport Layer)**
+
+- Route traffic using network information like IP, port, and protocol (TCP/UDP)
+- Fast and efficient because they do not inspect full application payloads
+- ✅ Best fit for high-throughput services, raw TCP services, and low-latency routing
+- ❌ Limited visibility into HTTP paths, headers, or cookies
+
+**Layer 7 Load Balancers (Application Layer)**
+
+- Route HTTP/HTTPS requests using URL path, host header, cookies, or request metadata
+- ✅ Enable advanced behaviors like path-based routing, API version routing, and canary releases
+- ✅ Commonly terminate TLS and integrate with WAF, auth checks, and observability tools
+- Higher flexibility with more processing overhead than Layer 4
+
+### By Deployment Model
 
 **Hardware Load Balancers**
 
@@ -166,9 +170,37 @@ Load balancers can be implemented at different layers and using various technolo
 - ❌ Vendor lock-in and pricing concerns
 - ❌ Less control over configuration
 
-## High Availability Patterns
+### By Traffic Visibility
 
-Understanding deployment patterns helps design resilient load balancing architectures.
+**External (Public) Load Balancers**
+
+- Internet-facing entry point for web or mobile clients
+- Commonly handle TLS termination, DDoS protection, and global DNS integration
+- Expose only required public endpoints while hiding backend node details
+
+**Internal (Private) Load Balancers**
+
+- Route traffic inside private networks (service-to-service or east-west traffic)
+- Not directly reachable from the public internet
+- Useful for microservices, internal APIs, and tier-to-tier communication
+
+### By Geographic Scope
+
+**Regional Load Balancers**
+
+- Route traffic within one region to nearby availability zones or instances
+- Simpler to operate with lower cross-region complexity and cost
+- If the region fails, failover depends on separate disaster recovery setup
+
+**Global Load Balancers**
+
+- Distribute traffic across multiple regions using geo/latency/policy-based routing
+- Improve resilience with automatic multi-region failover
+- Better global user experience, with higher operational complexity
+
+## Load Balancer Redundancy Topologies
+
+Redundancy topology defines how multiple load balancers are arranged to avoid a single point of failure.
 
 ```mermaid
 graph TD
@@ -189,41 +221,26 @@ graph TD
     end
 ```
 
-### Active-Active Configuration
+### Active-Active
 
-**Architecture**: Multiple load balancers handle traffic simultaneously
+**Model**: Two or more load balancers serve traffic at the same time.
 
-- All nodes actively process requests
-- DNS round-robin or BGP routing distributes traffic
-- ✅ Higher availability and resource utilization
-- ✅ Better performance and scalability
-- ❌ Complex synchronization and state management
-- ❌ Potential split-brain scenarios
+- Traffic is distributed across all active nodes (for example, via DNS or anycast/BGP)
+- Delivers strong availability and better aggregate throughput
+- Uses infrastructure more efficiently because no node sits idle
+- Requires careful health checks, config consistency, and traffic steering
+- Can increase operational complexity during partial failures
 
-### Active-Passive Configuration
+### Active-Passive
 
-**Architecture**: Primary load balancer handles traffic, backup on standby
+**Model**: One load balancer is active while a secondary node stays on standby.
 
-- Single active node, others in standby mode
-- Failover mechanism activates backup when primary fails
-- ✅ Simpler implementation and management
-- ✅ Lower cost with idle backup resources
-- ❌ Wasted standby resources and lower availability
-- ❌ Failover time impacts availability
-
-### Decision Matrix
-
-| Requirement               | Recommended Algorithm | Why                               |
-|---------------------------|-----------------------|-----------------------------------|
-| **Simple setup**          | Round Robin           | Easy to implement and understand  |
-| **Session persistence**   | IP Hash               | Maintains client-server affinity  |
-| **Heterogeneous servers** | Weighted Round Robin  | Accounts for capacity differences |
-| **Long connections**      | Least Connections     | Better for persistent connections |
-| **Performance critical**  | Least Response Time   | Optimizes for latency             |
-| **Dynamic environments**  | Resource-Based        | Adapts to real-time conditions    |
+- Normal traffic flows through the primary node only
+- On failure, a failover mechanism promotes the standby node
+- Easier to reason about and operate than active-active
+- Standby capacity is idle during normal operation
+- Recovery depends on failover detection and promotion time
 
 ## Reference Materials
 
-- [Horizontal vs Vertical Scaling](https://www.digitalocean.com/resources/article/horizontal-scaling-vs-vertical-scaling)
-- [What Is Load Balancing?](https://www.nginx.com/resources/glossary/load-balancing/)
-- [Active-Active vs Active-Passive Systems](https://www.youtube.com/watch?v=d-Bfi5qywFo&ab_channel=HusseinNasser)
+- [DNS Support for Load Balancing (RFC 1794)](https://datatracker.ietf.org/doc/html/rfc1794)

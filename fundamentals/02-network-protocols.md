@@ -13,7 +13,7 @@ graph TD
     C --> D[Link Layer<br/>Ethernet, Wi-Fi, PPP]
 ```
 
-### Layer Functions
+### Layers
 
 **1. Application Layer**
 
@@ -73,18 +73,7 @@ graph TD
 - **Frames**: Include source/destination MAC addresses, frame type, CRC
 - Adds: Physical addressing, error detection, frame boundaries
 
-### TCP vs UDP Trade-offs
-
-| Feature          | TCP                       | UDP                    |
-|------------------|---------------------------|------------------------|
-| **Reliability**  | Guaranteed delivery       | Best effort            |
-| **Ordering**     | In-order delivery         | No ordering guarantee  |
-| **Connection**   | Connection-oriented       | Connectionless         |
-| **Overhead**     | Higher (20+ bytes)        | Lower (8 bytes)        |
-| **Flow Control** | Yes                       | No                     |
-| **Use Cases**    | Web, email, file transfer | Gaming, streaming, DNS |
-
-## What happens when you type example.com in browser?
+## What Happens When You Type `example.com` in Your Browser?
 
 ```mermaid
 sequenceDiagram
@@ -101,12 +90,12 @@ sequenceDiagram
     B->>S: ACK
     
     Note over B,S: 4. TLS Handshake (if HTTPS)
-    B->>S: Client Hello (includes client random, session id, etc...)
-    S->>B: Server Hello (includes server random, session id, etc...) + Certificate
-    B->>S: Pre-master secret (encrypted with the public key in the certificate)
-    Note over B,S: Session key = pre-master secret + client random + server random
-    S->>B: Finished (encrypted with the session key)
-    B->>S: Finished (encrypted with the session key)
+    B->>S: ClientHello (cipher suites, TLS version, key share, SNI, ALPN)
+    S->>B: ServerHello + Certificate + key agreement parameters
+
+    Note over B,S: Shared secrets are derived and secure session keys are created
+    S->>B: Finished (encrypted)
+    B->>S: Finished (encrypted)
     
     Note over B,S: 5. HTTP Request/Response
     B->>S: HTTP Request
@@ -130,7 +119,7 @@ sequenceDiagram
 **3. TLS Handshake (HTTPS only)**
 
 - Certificate verification and cipher negotiation
-- Establishes encrypted communication
+- Establishes encrypted communication (TLS 1.3 in modern deployments)
 
 **4. HTTP Request**
 
@@ -159,17 +148,15 @@ sequenceDiagram
 - HTTP/2: Multiplexed streams
 - HTTP/3: QUIC protocol over UDP
 
-### Performance Considerations
-
-**Connection Reuse**: HTTP/1.1 keep-alive, HTTP/2 multiplexing
-**Compression**: gzip, brotli for text content
-**Caching**: Browser cache, CDN, proxy servers
-**DNS**: Pre-resolution, DNS-over-HTTPS (DoH)
-
 ## Reference Materials
 
-- [TCP/IP Protocol Suite](https://en.wikipedia.org/wiki/Internet_protocol_suite)
-- [How the TCP/IP Protocols Handle Data Communications](https://docs.oracle.com/cd/E26505_01/html/E27061/ipov-29.html)
-- [What Happens When You Type google.com Into Your Browser?](https://github.com/alex/what-happens-when)
-- [TLS Handshake Explained](https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake)
-- [HTTP/2 vs HTTP/3](https://blog.cloudflare.com/http-3-vs-http-2/)
+- [RFC 9293 - Transmission Control Protocol (TCP)](https://www.rfc-editor.org/rfc/rfc9293)
+- [RFC 768 - User Datagram Protocol (UDP)](https://www.rfc-editor.org/rfc/rfc768)
+- [RFC 791 - Internet Protocol (IPv4)](https://www.rfc-editor.org/rfc/rfc791)
+- [RFC 8200 - Internet Protocol, Version 6 (IPv6)](https://www.rfc-editor.org/rfc/rfc8200)
+- [RFC 1034 - Domain Names: Concepts and Facilities](https://www.rfc-editor.org/rfc/rfc1034)
+- [RFC 1035 - Domain Names: Implementation and Specification](https://www.rfc-editor.org/rfc/rfc1035)
+- [RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3](https://www.rfc-editor.org/rfc/rfc8446)
+- [RFC 9110 - HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110)
+- [RFC 9114 - HTTP/3](https://www.rfc-editor.org/rfc/rfc9114)
+- [RFC 9000 - QUIC: A UDP-Based Multiplexed and Secure Transport](https://www.rfc-editor.org/rfc/rfc9000)

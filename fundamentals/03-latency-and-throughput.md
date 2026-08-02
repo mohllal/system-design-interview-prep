@@ -1,183 +1,139 @@
 # Latency and Throughput
 
-Latency and throughput are key metrics used to measure network/system performance.
+Latency and throughput are core performance metrics that answer two different questions:
 
-They work together to determine overall connectivity and efficiency, with each affecting the other.
+- **Latency**: How long does one operation take?
+- **Throughput**: How many operations can the system handle per unit time?
+
+Both matter in system design, but optimizing one does not automatically optimize the other.
 
 ## Latency
 
-**Definition**: Time delay between sending a request and receiving a response.
+Latency is the time between sending a request and receiving a response.
 
-**Measured in**: Milliseconds (ms) or microseconds (μs)
+Common components:
 
-**Components of Latency:**
+- **Propagation delay**: Distance and network path
+- **Transmission delay**: Packet size vs link speed
+- **Processing delay**: App/DB compute time
+- **Queuing delay**: Waiting in overloaded queues
 
-```mermaid
-graph TD
-    A[Total Latency] --> B[Propagation Delay]
-    A --> C[Transmission Delay] 
-    A --> D[Processing Delay]
-    A --> E[Queuing Delay]
-    
-    B --affected by--> F[Distance / Signal speed]
-    C --affected by--> G[Packet size / Bandwidth]
-    D --affected by--> H[Server processing time]
-    E --affected by--> I[Network congestion]
-```
+### Why Percentiles Matter
 
-**Types:**
+Average latency can hide bad user experience.
 
-- **Network Latency**: Time for packet to travel across network
-- **Application Latency**: Time for application to process request
-- **Database Latency**: Time for database query execution
-- **Disk Latency**: Time for disk I/O operations
+- **p50**: Typical request experience
+- **p95/p99**: Tail latency (slowest users)
+- **max**: Useful for debugging, not SLO design
+
+In interviews, mention tail latency explicitly.
 
 ## Throughput
 
-**Definition**: Amount of data successfully transmitted/processed per unit time.
+Throughput is the amount of work completed /transmitted per second (for example, requests/sec, MB/sec).
 
-**Measured in**: bits per second (bps), megabits per second (Mbps), or gigabits per second (Gbps)
+Key terms:
 
-**Key Distinction:**
-
-- **Bandwidth**: Theoretical maximum capacity of a link/system
+- **Bandwidth**: Theoretical capacity of a link/system
 - **Throughput**: Actual data transfer/processing rate achieved
-- **Goodput**: Useful data transfer/processing rate (excluding headers, retransmissions, errors)
+- **Goodput**: Useful data transfer/processing rate (excluding retries, protocol overhead, etc.)
 
-```mermaid
-graph LR
-    A[Bandwidth<br/>100 Mbps] --> B[Throughput<br/>85 Mbps]
-    B --> C[Goodput<br/>75 Mbps]
-```
+Example:
 
-## Relationship Between Latency and Throughput
+- Link bandwidth: 1 Gbps
+- Effective throughput: 850 Mbps
+- Goodput after protocol overhead: lower still (e.g. 700 Mbps)
 
-**Common Misconception**: High bandwidth always means low latency
+## Latency vs Throughput Relationship
 
-**Reality**: They measure different aspects and can be independent
+They are related but not identical.
 
-```mermaid
-graph TD
-    A[Network Performance] --> B[Latency<br/>How fast?]
-    A --> C[Throughput<br/>How much?]
-    
-    B --> D[User Experience<br/>Responsiveness]
-    C --> E[System Capacity<br/>Total volume]
-```
+- High throughput with high queuing can still mean high latency
+- Low latency per request does not guarantee high total throughput
+- Under load, latency often rises before throughput saturates
 
-## Performance Trade-offs
+Practical rule:
 
-### Latency vs Throughput Examples
+- Optimize latency for user-facing paths
+- Optimize throughput for batch/background pipelines
 
-```mermaid
-quadrantChart
-    title Network Performance Characteristics
-    x-axis Low Latency --> High Latency
-    y-axis Low Throughput --> High Throughput
-    
-    quadrant-1 High Throughput, Low Latency
-    quadrant-2 High Throughput, High Latency  
-    quadrant-3 Low Throughput, High Latency
-    quadrant-4 Low Throughput, Low Latency
-    
-    Gaming/Trading: [0.1, 0.2]
-    Video Streaming: [0.6, 0.9]
-    File Downloads: [0.8, 0.9]
-    IoT Sensors: [0.3, 0.1]
-```
+## Common Bottlenecks
+
+**Latency bottlenecks:**
+
+- Long network paths and DNS/TLS setup
+- Slow DB queries and N+1 access patterns
+- Synchronous dependency chains
+- Lock/contention hotspots
+
+**Throughput bottlenecks:**
+
+- CPU/memory saturation
+- DB connection pool limits
+- Disk I/O limits
+- Single-threaded or serial stages
 
 ## Optimization Strategies
 
-### Reducing Latency
+### Reduce Latency
 
-**Geographic Distribution:**
+- Place data/services closer to users (CDN, regional deployment)
+- Use connection reuse and modern HTTP (HTTP/2/3)
+- Cache hot reads
+- Parallelize independent work
+- Remove unnecessary remote calls
 
-- Content Delivery Networks (CDNs)
-- Edge computing and regional data centers
-- Anycast routing
+### Increase Throughput
 
-**Protocol Optimization:**
+- Scale out stateless services
+- Batch writes/reads where safe
+- Use async processing for non-critical work
+- Compress payloads when CPU cost is acceptable
+- Tune pool sizes and queue concurrency
 
-- HTTP/2 multiplexing (eliminates head-of-line blocking)
-- HTTP/3 with QUIC (faster connection setup)
-- Connection pooling and keep-alive
-
-**Application-Level:**
-
-- Database query optimization
-- Efficient processing of requests
-- Asynchronous processing
-
-**Network-Level:**
-
-- Reduce network hops
-- Quality of Service (QoS) prioritization
-- Direct peering agreements
-
-### Improving Throughput
-
-**Bandwidth Scaling:**
-
-- Increase link capacity
-- Load balancing across multiple connections
-- Network interface bonding
-
-**Compression:**
-
-- gzip/brotli for text content
-- Image and video compression
-- Protocol-level compression
-
-**Concurrency:**
-
-- Parallel processing
-- Pipelining requests
-- Batch operations
-
-**Caching Strategies:**
-
-- Browser caching
-- Reverse proxy caching
-- Application-level caching
-
-## Real-World Considerations
+## Useful Formulas
 
 ### Bandwidth-Delay Product
 
-**Formula**: Bandwidth × Round-Trip Time = Amount of data "in flight"
+The **Bandwidth-Delay Product (BDP)** is the amount of data that can be "in flight" (sent but not yet acknowledged) on a network link.
 
-**Impact**: Determines optimal TCP window size and buffer requirements
+`Data in flight = Bandwidth x Round-Trip Time (RTT)`
 
-```mermaid
-graph LR
-    A[1 Gbps Link] --> B[100ms RTT]
-    B --> C[12.5 MB in flight]
-    C --> D[Need large buffers]
-```
+**Why it matters:** To fully utilize the available link bandwidth, the sender's TCP window (or buffer) must be at least as large as the BDP.
 
-### Little's Law Application
+If it's smaller, the sender has to stop and wait for acknowledgments before sending more data, leaving the link underutilized and reducing throughput.
 
-**Formula**: Average number of requests = Arrival rate × Average response time
+**Example:**
 
-**Usage**: Capacity planning and performance modeling
+- Bandwidth = **100 Mbps**
+- RTT = **100 ms (0.1 s)**
 
-### Common Bottlenecks
+BDP = `100 Mbps × 0.1 s = 10 Mb = 1.25 MB`
 
-**Latency Bottlenecks:**
+This means the sender needs to have **1.25 MB of unacknowledged data in flight** to keep the link fully utilized.
 
-- Physical distance (speed of light limitation)
-- DNS resolution time
-- TLS handshake overhead
-- Database query performance
+If the TCP window is only **64 KB**, the sender will frequently pause waiting for ACKs, achieving only a small fraction of the available 100 Mbps bandwidth.
 
-**Throughput Bottlenecks:**
+### Little's Law
 
-- Network bandwidth limits
-- Server CPU/memory resources
-- Database connection pools
-- Disk I/O capacity
+`Average concurrency = Arrival rate x Average response time`
 
-## Reference Materials
+The **Little's Law** relates the number of requests being processed simultaneously (concurrency) to the request arrival rate and the average time each request spends in the system.
 
-- [What's the Difference Between Throughput and Latency?](https://aws.amazon.com/compare/the-difference-between-throughput-and-latency/)
-- [CDN Performance Optimization](https://www.cloudflare.com/learning/cdn/performance/)
+**Why it matters:** It helps estimate how many requests your application must handle concurrently, making it useful for sizing thread pools, connection pools, queues, and other limited resources.
+
+**Example:**
+
+- Arrival rate = **1,000 requests/sec**
+- Average response time = **0.2 sec**
+
+Average concurrency = `1,000 × 0.2 = 200`
+
+This means that, on average, **200 requests are in flight** at any given time. If your server can only handle **100 concurrent requests**, requests will start queueing, increasing latency and potentially causing timeouts.
+
+## Interview Talking Points
+
+- Clarify whether the requirement is low latency, high throughput, or both.
+- Always discuss percentiles (p95/p99), not only averages.
+- Identify the bottleneck layer (network, app, DB, queue).
+- Explain trade-offs of caching/async/parallelism on correctness.

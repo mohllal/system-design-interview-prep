@@ -17,6 +17,7 @@ Core concepts for how systems communicate and exchange data.
 | [REST API](./05-rest-api.md)                                       | Resource modeling, HTTP semantics, versioning                     |
 | [Communication Patterns](./06-communication-patterns.md)           | REST, RPC, GraphQL, polling, streaming, messaging                 |
 | [Real-Time Communication](./07-realtime-communication-patterns.md) | Short/long polling, SSE, WebSockets, live update trade-offs       |
+| [Messaging Patterns](./29-messaging-patterns.md)                   | Queues, pub/sub, request-reply, delivery semantics, routing       |
 
 ### Reliability & Performance
 
@@ -29,6 +30,7 @@ Strategies for building resilient and performant systems.
 | [Scalability](./10-scalability.md)                                   | Scale-up/out, bottlenecks, scaling patterns        |
 | [Caching](./11-caching.md)                                           | Cache levels and strategies, invalidation patterns |
 | [Proxies](./12-proxies.md)                                           | Forward/reverse proxies, CDNs, load balancers      |
+| [CDN](./32-cdn.md)                                                   | Edge caches, cache keys, origin protection, routing |
 | [Load Balancing](./13-load-balancing.md)                             | Load balancing algorithms, health checks, failover |
 | [Resilience](./14-resilience.md)                                     | Failure isolation, degradation, recovery           |
 | [Observability](./15-observability.md)                               | Metrics, logs, traces, alerts, telemetry design    |
@@ -59,7 +61,7 @@ Core concepts for coordination and consistency in distributed architectures.
 | [Leader Election](./26-leader-election.md)                 | Leader-follower pattern, failover, leases      |
 | [Consensus](./27-consensus.md)                             | Quorum, Raft vs Paxos, consistency guarantees  |
 | [Pub/Sub](./28-pub-sub.md)                                 | Messaging patterns, event-driven architectures |
-| [Rate Limiting](./29-rate-limiting.md)                     | Traffic control, rate limiting algorithms      |
+| [Rate Limiting](./30-rate-limiting.md)                     | Algorithms, distributed limits, client retries     |
 
 ### Capacity Planning
 
@@ -67,8 +69,8 @@ Estimation and performance analysis techniques.
 
 | Topic                                                                          | Key Concepts                               |
 |--------------------------------------------------------------------------------|--------------------------------------------|
-| [Back-of-the-Envelope Calculations](./30-back-of-the-envelope-calculations.md) | Estimation techniques, performance numbers |
+| [Back-of-the-Envelope Calculations](./31-back-of-the-envelope-calculations.md) | Estimation techniques, performance numbers |
 
 ---
 
-For deeper dives into authentication, multi-region replication, MapReduce, and P2P networks, see [Advanced Topics](../advanced/README.md).
+For deeper dives into authentication, multi-region replication, MapReduce, P2P networks, and Kafka as a distributed-systems case study, see [Advanced Topics](../advanced/README.md).

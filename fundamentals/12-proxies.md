@@ -44,7 +44,7 @@ Typical uses:
 
 ## CDN (Related Edge Pattern)
 
-A CDN is a geographically distributed reverse-proxy/cache network.
+A CDN is a geographically distributed reverse-proxy/cache network. For cache keys, pull vs push, origin shields, and invalidation, see [CDN](./32-cdn.md).
 
 Why it helps:
 

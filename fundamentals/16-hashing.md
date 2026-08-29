@@ -164,25 +164,6 @@ def get_node_hrw(key, nodes):
 | **Node Changes** | Minimal redistribution         | Minimal redistribution             |
 | **Use Cases**    | Large-scale systems            | Smaller node counts                |
 
-## Real-World Applications
-
-### Database Sharding
-
-```mermaid
-graph LR
-    A[User Request<br/>user_id: 12345] --> B[Hash Function]
-    B --> C[Shard 1<br/>Users 0-1000]
-    B --> D[Shard 2<br/>Users 1001-2000]
-    B --> E[Shard 3<br/>Users 2001-3000]
-```
-
-**Use Cases:**
-
-- **Distributed Databases**: MongoDB, Cassandra use consistent hashing for data distribution
-- **Caching Systems**: Redis Cluster, Memcached distribute cache entries
-- **Load Balancing**: Route requests to backend servers
-- **CDN Edge Selection**: Choose nearest edge server for content delivery
-
 ## Performance Considerations
 
 ### Hash Function Selection

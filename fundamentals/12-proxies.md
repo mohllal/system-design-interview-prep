@@ -1,14 +1,31 @@
+---
+title: "Proxies"
+concepts:
+  - forward-proxy
+  - reverse-proxy
+  - tls-termination
+  - request-routing
+  - proxy-vs-load-balancer
+  - edge-caching
+related:
+  - fundamentals/34-cdn.md
+  - fundamentals/13-load-balancing.md
+  - fundamentals/11-caching.md
+  - fundamentals/32-rate-limiting.md
+  - fundamentals/14-resilience.md
+---
+
 # Proxies
 
 A proxy is an intermediary that sits between clients and servers to control, optimize, or protect traffic.
 
 Proxies are commonly used for security, caching, routing, and protocol handling.
 
-## Forward Proxy vs Reverse Proxy
+## Forward proxy vs reverse proxy
 
-### Forward Proxy (Client-Side)
+### Forward proxy (client-side)
 
-Acts on behalf of clients going to the internet.
+A forward proxy acts on behalf of clients making requests to the internet.
 
 ```mermaid
 graph LR
@@ -23,9 +40,9 @@ Typical uses:
 - Hiding internal client identity from external servers
 - Centralized outbound policy enforcement
 
-### Reverse Proxy (Server-Side)
+### Reverse proxy (server-side)
 
-Acts on behalf of backend servers facing clients.
+A reverse proxy acts on behalf of backend servers, facing clients directly.
 
 ```mermaid
 graph LR
@@ -42,7 +59,7 @@ Typical uses:
 - Caching/compression at the edge
 - WAF, rate limiting, and request filtering
 
-## CDN (Related Edge Pattern)
+## CDN (related edge pattern)
 
 A CDN is a geographically distributed reverse-proxy/cache network. For cache keys, pull vs push, origin shields, and invalidation, see [CDN](./34-cdn.md).
 
@@ -52,14 +69,14 @@ Why it helps:
 - Reduces origin load and global latency
 - Improves resilience during traffic spikes
 
-## Common Capabilities
+## Common capabilities
 
 - **Security**: Hide backend topology, apply WAF/rate limits
 - **Performance**: Cache responses, compress payloads, reuse connections
 - **Routing**: Path/host-based routing to different services
 - **Observability**: Central request logging and metrics
 
-## Proxy vs Load Balancer
+## Proxy vs load balancer
 
 They overlap in practice, but intent differs:
 
@@ -68,7 +85,7 @@ They overlap in practice, but intent differs:
 
 Many tools (Nginx, HAProxy, Envoy, cloud gateways) can do both.
 
-## Practical Example Flow
+## Practical example flow
 
 1. User requests `https://api.example.com/orders`
 2. Reverse proxy terminates TLS
@@ -77,22 +94,22 @@ Many tools (Nginx, HAProxy, Envoy, cloud gateways) can do both.
 5. Response is cached/compressed if policy allows
 6. Client receives response without seeing backend details
 
-## Design Guidelines
+## Design guidelines
 
 - Terminate TLS at edge for operational simplicity
 - Keep backend services private where possible
 - Use health checks and circuit-aware routing
-- Define cache rules explicitly (what can/cannot be cached)
+- Define cache rules explicitly (what can and cannot be cached)
 - Log request IDs for traceability across proxy and services
 
-## Interview Talking Points
+## Interview talking points
 
 - Clarify forward vs reverse proxy role in the design.
 - Mention why reverse proxy improves security and operability.
 - Tie proxy features to latency, availability, and protection goals.
 - Distinguish proxy responsibilities from pure load balancing.
 
-## Reference Materials
+## Reference materials
 
 - [Cloudflare - What is a Reverse Proxy?](https://www.cloudflare.com/learning/cdn/glossary/reverse-proxy/)
 - [NGINX Reverse Proxy Guide](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/)

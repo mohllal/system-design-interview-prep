@@ -1,33 +1,51 @@
+---
+title: "Caching"
+concepts:
+  - cache-aside
+  - read-through
+  - write-strategies
+  - cache-eviction-policies
+  - cache-invalidation
+  - cache-stampede
+  - cache-avalanche
+  - cache-penetration
+related:
+  - fundamentals/34-cdn.md
+  - fundamentals/17-bloom-filters.md
+  - fundamentals/32-rate-limiting.md
+  - fundamentals/14-resilience.md
+---
+
 # Caching
 
 Caching stores frequently accessed data in faster storage to reduce latency and backend load.
 
 It is one of the highest-impact performance techniques in system design, but correctness depends on invalidation strategy.
 
-## When to Use Caching
+## When to use caching
 
-Good fit:
+**Good fit:**
 
 - Read-heavy workloads
 - Expensive DB/API/compute reads
 - Data that changes slowly or can tolerate staleness
 
-Poor fit:
+**Poor fit:**
 
 - Strong consistency requirements on every read
 - Highly volatile data with low reuse
 - Workloads where stale reads cause business risk
 
-## Cache Levels
+## Cache levels
 
 - **Client cache**: Fastest for static assets, limited control
 - **CDN/edge cache**: Global read acceleration ([CDN](./34-cdn.md))
 - **Application cache**: Redis/Memcached for hot keys
 - **Database cache/buffer pool**: Engine-level page caching
 
-## Read Patterns
+## Read patterns
 
-### Cache-Aside (Lazy Loading)
+### Cache-aside (lazy loading)
 
 Most common pattern.
 
@@ -36,44 +54,54 @@ Most common pattern.
 3. App writes result to cache
 4. Return response
 
-Pros: flexible, widely used  
-Cons: app owns cache logic (when and how to update the cache) and consistency
+**Pros:**
 
-### Read-Through
+- Flexible and widely used
+
+**Cons:**
+
+- The application owns cache logic (deciding when and how to update the cache) and consistency
+
+### Read-through
 
 Cache layer loads missing data automatically.
 
 1. App checks cache
-2. On miss, the cache layer reads the data from the database and stores it in the cache
-3. Cache layer returns the data to the app
-4. App returns the data to the client
+2. On miss, cache layer reads data from DB and stores it in the cache
+3. Cache layer returns data to app
+4. App returns data to client
 
-Pros: simpler app code  
-Cons: less control over transformation/failure handling
+**Pros:**
 
-## Write Patterns
+- Simpler application code
 
-### Write-Through
+**Cons:**
+
+- Less control over transformation and failure handling
+
+## Write patterns
+
+### Write-through
 
 Write to cache and DB together.
 
 - Strong freshness
 - Higher write latency
 
-### Write-Behind (Write-Back)
+### Write-behind (write-back)
 
 Write to cache first, DB asynchronously.
 
 - Better write performance
 - Risk during failures if not designed carefully
 
-### Write-Around
+### Write-around
 
 Write directly to DB, skip cache update.
 
 - Avoids cache pollution for write-heavy, rarely-read data
 
-## Invalidation Strategies
+## Invalidation strategies
 
 - **TTL**: Simple expiration by time
 - **Event-based invalidation**: Invalidate on data change events
@@ -85,7 +113,7 @@ Practical approach:
 - Use TTL as baseline safety net
 - Add explicit invalidation for critical entities
 
-## Replacement Policies
+## Replacement policies
 
 When cache is full, choose what to remove:
 
@@ -95,13 +123,13 @@ When cache is full, choose what to remove:
 
 For distributed caches, also plan for hot-key handling and memory limits per node.
 
-## Common Cache Problems
+## Common cache problems
 
-### Cache Penetration
+### Cache penetration
 
-Repeated requests for nonexistent keys bypass cache and hit DB.
+Repeated requests for nonexistent keys bypass the cache and hit the DB.
 
-Mitigation: Bloom filters or negative caching with short TTL.
+Mitigation: Bloom filters or negative caching with a short TTL.
 
 > Negative caching means caching the fact that a key does not exist, usually with a short TTL, so repeated requests don't keep hitting the database.
 
@@ -111,7 +139,7 @@ Example for negative caching:
 - Cache stores "not found" for `30 seconds`.
 - Subsequent requests are served from the cache instead of querying the DB again.
 
-### Cache Avalanche
+### Cache avalanche
 
 Many cached keys expire around the same time (e.g., all with a 1-hour TTL), causing a surge of cache misses and overwhelming the origin data source.
 
@@ -121,7 +149,7 @@ Mitigation:
 - Pre-warming: Refresh hot keys before they expire.
 - Request coalescing: Let only one request rebuild a missing cache entry while others wait for the result.
 
-### Cache Stampede
+### Cache stampede
 
 A cache stampede occurs when a hot (frequently accessed) key expires, causing many concurrent requests to miss the cache and simultaneously query the database to rebuild the same value.
 
@@ -209,26 +237,26 @@ sequenceDiagram
     Note over DB: Only one database query
 ```
 
-### Cache Pollution
+### Cache pollution
 
 Cache pollution occurs when less frequently accessed data displaces more frequently accessed data in the cache, leading to a reduced cache hit rate.
 
-Mitigation: Eviction policies like LRU (Least Recently Used) or LFU (Least Frequently Used) can be employed, which prioritize retaining frequently accessed data in the cache.
+Mitigation: Eviction policies such as LRU (least recently used) or LFU (least frequently used) help by prioritizing retention of frequently accessed data in the cache.
 
-## Cache Metrics
+## Cache metrics
 
 - **Cache hit rate**: The percentage of requests that are served from the cache.
 - **Cache miss rate**: The percentage of requests that are not served from the cache.
 - **Cache eviction rate**: The percentage of cache entries that are evicted.
 
-## Design Guidelines
+## Design guidelines
 
 - Define acceptable staleness per data type
 - Keep cache keys deterministic and versioned when needed
 - Monitor hit ratio, miss latency, and eviction rate
 - Protect origin with timeouts, rate limits, and circuit breakers
 
-## Interview Talking Points
+## Interview talking points
 
 - Start with read/write ratio and consistency requirements.
 - Pick read/write pattern explicitly (usually cache-aside).

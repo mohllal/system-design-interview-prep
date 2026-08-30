@@ -1,4 +1,23 @@
-# Database Partitioning
+---
+title: "Database partitioning"
+concepts:
+  - partition-key-design
+  - colocation
+  - hash-based-partitioning
+  - range-based-partitioning
+  - directory-based-partitioning
+  - global-secondary-indexes
+  - distributed-transactions
+  - resharding
+related:
+  - fundamentals/16-hashing.md
+  - fundamentals/22-database-indexes.md
+  - fundamentals/23-database-replication.md
+  - fundamentals/27-cap-and-pacelc-theorems.md
+  - fundamentals/28-leader-election.md
+---
+
+# Database partitioning
 
 Partitioning and replication solve different problems. Mixing them up is the usual design-interview miss.
 
@@ -18,32 +37,36 @@ A production database almost always does both:
         copies of A                copies of B                copies of C
 ```
 
-## What You Are Trying to Keep Together
+## What you are trying to keep together
 
 The partition key is the unit of **locality**, not a hashing trivia question.
 
 Anything that must be fast, consistent, or transactional together should share a key: one user's orders, one tenant's rows, one `device_id`'s time series.
 
-That is **colocation** (entity groups in some stores): parent and children hashed on the same id so a transaction never leaves the shard.
+That is **colocation** (entity groups in some stores): parent and children hashed on the same ID so a transaction never leaves the shard.
 
 If you cannot name the key, you are not ready to shard. "Shard by user_id" is a claim that almost every query and every transaction is per-user.
 
-**Compound keys.** Often only a prefix is the shard key (`(user_id, order_id)` stored together, hashed on `user_id`) .. hashing the whole compound key splits one user's orders across nodes.
+**Compound keys.** Often only a prefix is the shard key (`(user_id, order_id)` stored together, hashed on `user_id`) — hashing the whole compound key splits one user's orders across nodes.
 
 **Two different splits people conflate:**
 
-- **In-database partitions** (Postgres `PARTITION BY RANGE (day)`, MySQL partitions): still one server, one WAL, one failover. Wins: prune old data, cheaper vacuum, drop a day in one shot.
-- **Shards**: separate servers, separate replica sets. Wins: write and storage scale. Cost: routing, no cross-shard FK, distributed transactions.
+| Approach                | Scope                                   | Wins                                                   | Cost                                                 |
+| ----------------------- | --------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------- |
+| In-database partitions* | Still one server, one WAL, one failover | Prune old data, cheaper vacuum, drop a day in one shot | —                                                    |
+| Shards                  | Separate servers, separate replica sets | Write and storage scale                                | Routing, no cross-shard FK, distributed transactions |
+
+*Postgres `PARTITION BY RANGE (day)`, MySQL partitions, etc.
 
 Vertical split (users DB vs payments DB) is a **service/table** cut, not a row-key cut. It scales teams and blast radius but it does not by itself scale a hot `orders` table.
 
-## Sharding Techniques
+## Sharding techniques
 
 ### Hash
 
 `shard = hash(key) % N` (or a [consistent hash](./16-hashing.md) ring).
 
-Even load if the key has high cardinality and no celebrity values and range queries (`WHERE created_at BETWEEN …`) become scatter-gather.
+You get even load if the key has high cardinality and no celebrity values, but range queries (`WHERE created_at BETWEEN …`) become scatter-gather.
 
 `hash % N` remaps **most** keys when `N` changes. Consistent hashing / virtual nodes remaps about `1/N` of keys. Doubling `N` and splitting each shard in two is a planned special case of "N only grows by split."
 
@@ -51,7 +74,7 @@ Default for OLTP when you need even writes and can live without cross-key range 
 
 ### Range
 
-Contiguous key ranges on each node (`user_id 1–1M` on shard 1). Range scans stay on one node. Autoincrement ids and "latest day" time series all land on the **high end** — one hot shard, idle older shards.
+Contiguous key ranges on each node (`user_id 1–1M` on shard 1). Range scans stay on one node. Autoincrement IDs and "latest day" time series all land on the **high end** — one hot shard, idle older shards.
 
 Pre-split ranges (Bigtable/HBase/Spanner style) before the load exists, then **split** a hot range and **merge** cold ones. Unbounded "just append to the last range" is how time-series OLTP dies.
 
@@ -69,11 +92,11 @@ Vitess-style and many multi-tenant "cell" designs are directories plus a proxy.
 
 Put EU rows in EU because of latency or law, not because hash was even. Cross-region queries and global uniqueness are the cost.
 
-## Request Routing
+## Request routing
 
 The app has to **know** which replica set owns the key.
 
-- **Client-side**: hash in the app, connect to the right pool. Fast, embeds topology in every service
+- **Client-side**: hash in the app, connect to the right pool. Fast, embeds topology in every service.
 - **Proxy / coordinator** (Vitess, Citus, Spanner's API, a smart load balancer): one SQL endpoint, routing in the middle. Easier for apps but the proxy is now in the availability path and must not become a single-node bottleneck.
 - **Forwarding**: node receives a mis-routed query and proxies to the owner. Simple, extra hop.
 
@@ -84,13 +107,13 @@ targeted:  WHERE user_id = 42        → shard hash(42)
 scatter:   WHERE status = 'open'     → all shards, merge, p99 = worst shard
 ```
 
-## Secondary Indexes, Uniqueness, IDs
+## Secondary indexes, uniqueness, IDs
 
 Local secondary index: `orders(user_id, created_at)` on the shard that already holds that user. Cheap, partition-local.
 
-Global secondary index: "find user by email" when you sharded by `user_id`. Email lives on an unknown shard, so you maintain another table/index sharded by `email` (or a dedicated lookup store).
+Global secondary index: "find user by email" when you've sharded by `user_id`. Email lives on an unknown shard, so you maintain another table/index sharded by `email` (or a dedicated lookup store).
 
-That index is a **second dataset** to write, fail, and repair. Dual-write it in the same story as outbox if it cannot be wrong.
+That index is a **second dataset** to write, fail, and repair. If it cannot be wrong, dual-write it with the same rigor as an outbox pattern.
 
 Foreign keys do not span shards. Enforce in the app or denormalize.
 
@@ -98,11 +121,11 @@ Foreign keys do not span shards. Enforce in the app or denormalize.
 
 Unique constraints (`UNIQUE email`) are local to a shard unless you have a global index or a dedicated allocation service. "Unique in the universe" is a distributed problem.
 
-IDs: Per-shard autoincrement collides when you merge or when the client sees ids from two shards. Use unique ids that need no central counter (snowflake-style, ULID, UUID).
+IDs: per-shard autoincrement collides when you merge or when the client sees IDs from two shards. Use unique IDs that need no central counter (snowflake-style, ULID, UUID).
 
-If you need roughly-increasing ids for range scans, put time in the high bits and accept some skip, or keep the range on a key that is not the shard key.
+If you need roughly-increasing IDs for range scans, put time in the high bits and accept some skip, or keep the range on a key that is not the shard key.
 
-## Cross-Partition Work
+## Cross-partition work
 
 A transaction that touches two shards is a distributed transaction ([2PC](../architecture/05-two-phase-commit.md)): extra RTTs, coordinator failure, more ways to be unsure.
 
@@ -125,7 +148,7 @@ Failover is **per shard**. Shard 7 can elect a new primary while shard 3 is unto
 
 Leaderless stores still **partition** by key (Cassandra tokens, Dynamo partitions). Quorum `R/W` is per-key copies, not "no sharding."
 
-## Resharding Without Losing a Shard
+## Resharding without losing a shard
 
 Typical live split:
 
@@ -138,26 +161,26 @@ Hash `% N` with a new `N` means almost everyone moves. Prefer **split in half** 
 
 Keep the cluster **replicated the whole time**. Copying onto a single node "to be quick" is how a shard disappears mid-migration.
 
-## How Many Shards
+## How many shards?
 
 Too few: you are back to one hot primary. Too many: each replica set has little data, scatter queries fan out to hundreds of nodes, connections and schema deploys multiply, and you still have hot keys.
 
 Start from working-set RAM, disk, and write QPS **per shard**, plus headroom for the hottest shard (not the average). Plan to **split**, not to guess the perfect `N` forever.
 
-## Schema and Operations
+## Schema and operations
 
 `N` shards × `R` replicas is `N` replica sets to backup, page on, and migrate. Rolling schema changes: expand-contract (add column nullable, backfill per shard, then switch app). There is no single lock across shards.
 
 Measure **per shard**: QPS, CPU, disk, replication lag, row count.
 
-## What Breaks
+## What breaks when you shard
 
-- Hot keys: one partition key cannot be split by adding shards. Cache, queue, split the key (`user_id + bucket`), or a bigger box / dedicated shard.
-- Scatter-gather: unkeyed list/filter hits every shard .. p99 is the slowest plus merge.
-- Rebalancing: hash modulo reshuffles the world. Plan `N` or use a ring/directory.
-- IDs, uniqueness, FKs: See above .. these are distributed systems problems once you shard.
+- Hot keys: one partition key cannot be split by adding shards. Cache, queue, split the key (`user_id + bucket`), or use a bigger box / dedicated shard.
+- Scatter-gather: an unkeyed list or filter query hits every shard — p99 is the slowest shard plus the merge.
+- Rebalancing: hash-modulo resharding reshuffles the world. Plan `N` ahead of time, or use a ring/directory.
+- IDs, uniqueness, FKs: distributed-systems problems once you shard (see above).
 
-## Order of Moves
+## Order of moves
 
 1. Indexes, query shape, connection pooling, a bigger primary
 2. Replicas for reads, failover, backups — still one write primary
@@ -168,17 +191,17 @@ Measure **per shard**: QPS, CPU, disk, replication lag, row count.
 
 Skipping to (4) because "scale" was on the rubric is how you inherit scatter-gather and a bad key.
 
-## Interview Talking Points
+## Interview talking points
 
 - Name the **axis**: copies vs split. Replica set per shard.
 - Defend the **partition key** with a query and a transaction (colocation), not "hash user_id."
 - **Hot keys** vs too many shards.
 - Hash modulo vs split/consistent hashing for resharding.
-- Failover is per shard
+- Failover is per shard.
 - Resharding must stay replicated.
 - Sync vs async is RPO vs latency.
 
-## Reference Materials
+## Reference materials
 
 - [Sharding Pinterest: How we scaled our MySQL fleet](https://medium.com/pinterest-engineering/sharding-pinterest-how-we-scaled-our-mysql-fleet-3f341e96ca6f)
 - [F1 / Spanner-style Paper](https://www.cs.princeton.edu/courses/archive/spring16/cos598F/f1-google.pdf)

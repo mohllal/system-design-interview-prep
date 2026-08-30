@@ -1,15 +1,35 @@
+---
+title: "REST API"
+concepts:
+  - rest-principles
+  - resource-naming
+  - http-methods
+  - idempotency
+  - http-status-codes
+  - cursor-pagination
+  - api-versioning
+  - http-caching
+  - optimistic-concurrency-control
+related:
+  - fundamentals/04-http-versions.md
+  - fundamentals/06-communication-patterns.md
+  - fundamentals/11-caching.md
+  - fundamentals/26-concurrency-control.md
+  - fundamentals/32-rate-limiting.md
+---
+
 # REST API
 
-REST API defines how clients interact with server resources using HTTP semantics in a consistent, predictable way.
+REST (Representational State Transfer) is an architectural style that defines how clients interact with server resources using HTTP semantics in a consistent, predictable way.
 
-## REST Principles
+## REST principles
 
-- **Uniform Interface:** Each resource is identified by a URL, and the four HTTP methods (GET, POST, PUT, DELETE) are used to manipulate the resource. This makes the interface consistent and predictable
-- **Stateless:** Each request contains all necessary information, and the server does not store any state between requests. This simplifies server design, improves scalability, and reliability, as any server can handle any request
-- **Cacheable:** Resources should be explicitly or implicitly marked as cacheable or non-cacheable. The server can cache the response for a given request, and the client can cache the response for a given request
-- **Client-Server:** The client and server are separate entities with distinct responsibilities. This separation allows for independent development and evolution of both components
+- **Uniform interface**: Each resource is identified by a URL, and HTTP methods (GET, POST, PUT, PATCH, DELETE) are used to manipulate it. This makes the interface consistent and predictable.
+- **Stateless**: Each request contains all necessary information, and the server stores no state between requests. This simplifies server design and improves scalability and reliability, since any server can handle any request.
+- **Cacheable**: Resources should be explicitly or implicitly marked as cacheable or non-cacheable. Both the server and the client can cache the response for a given request.
+- **Client-server**: The client and server are separate entities with distinct responsibilities. This separation allows for independent development and evolution of both components.
 
-## Resource and URL Naming
+## Resource and URL naming
 
 Use stable, plural, noun-based paths:
 
@@ -23,43 +43,45 @@ Avoid:
 - Inconsistent naming (`/user` vs `/users`)
 - Deep nesting beyond 2-3 levels
 
-## HTTP Methods and Idempotency
+## HTTP methods and idempotency
 
-- `GET`: Read resource (safe, idempotent)
-- `POST`: Create or trigger non-idempotent action
-- `PUT`: Replace full resource (idempotent)
-- `PATCH`: Partial update (can be idempotent by contract)
-- `DELETE`: Remove resource (idempotent in API behavior)
+| Method   | Purpose                                | Safe | Idempotent            |
+| -------- | -------------------------------------- | ---- | --------------------- |
+| `GET`    | Read a resource                        | Yes  | Yes                   |
+| `POST`   | Create a resource or trigger an action | No   | No                    |
+| `PUT`    | Replace the full resource              | No   | Yes                   |
+| `PATCH`  | Partially update a resource            | No   | Can be, by contract   |
+| `DELETE` | Remove a resource                      | No   | Yes (in API behavior) |
 
 Idempotency matters for retries. For create/payment operations, use idempotency keys to prevent duplicate effects.
 
-## Status Codes
+## Status codes
 
 Use clear status codes:
 
 - `200`/`201`/`204` for success
 - `400` for validation errors
-- `401`/`403` for auth/authz failures
+- `401`/`403` for authentication/authorization failures
 - `404` for missing resources
 - `409` for conflicts
 - `429` for rate limiting
 - `5xx` for server-side failures
 
-## Filtering, Sorting, and Pagination
+## Filtering, sorting, and pagination
 
 Use query parameters for collection querying:
 
-- Filtering: `/orders?status=paid&customerId=123`
-- Sorting: `/orders?sort=-createdAt`
-- Pagination: cursor-based preferred at scale
+- **Filtering**: `/orders?status=paid&customerId=123`
+- **Sorting**: `/orders?sort=-createdAt`
+- **Pagination**: Cursor-based preferred at scale
 
 Cursor pagination is more stable than offset pagination for changing datasets.
 
-## Versioning and Compatibility
+## Versioning and compatibility
 
 Prefer clear major versions when introducing breaking changes:
 
-- Path versioning: `/v1/orders`
+- **Path versioning**: `/v1/orders`
 
 Deprecation guidance:
 
@@ -67,7 +89,7 @@ Deprecation guidance:
 - Return `Deprecation` and `Sunset` headers where appropriate
 - Provide migration docs and replacement endpoints
 
-## Caching Control
+## Caching control
 
 Use caching headers on read endpoints to reduce latency and backend load.
 
@@ -84,31 +106,31 @@ How it is used:
 
 Result: lower bandwidth usage and faster repeated reads.
 
-## Concurrency Control
+## Concurrency control
 
 Use optimistic concurrency to prevent lost updates when multiple clients edit the same resource.
 
-- Client reads resource and gets current `ETag`
-- Client sends update with `If-Match: <ETag>`
-- Server updates only if ETag still matches latest version
-- If not matched, return `412 Precondition Failed`
+- Client reads the resource and gets the current `ETag`
+- Client sends the update with `If-Match: <ETag>`
+- Server updates only if the ETag still matches the latest version
+- If not matched, server returns `412 Precondition Failed`
 
 How it is used:
 
-1. Client A and B read `/orders/99` with `ETag: "v10"`
-2. A updates first -> resource becomes `v11`
-3. B sends update with stale `If-Match: "v10"`
+1. Client A and client B read `/orders/99` with `ETag: "v10"`
+2. A updates first, so the resource becomes `v11`
+3. B sends an update with a stale `If-Match: "v10"`
 4. Server rejects with `412`, forcing B to re-read and retry safely
 
 Result: prevents accidental overwrite of newer data without using locks.
 
-## Interview Talking Points
+## Interview talking points
 
 - REST quality comes from consistent resource modeling and HTTP correctness.
 - Idempotency and error consistency are critical for production reliability.
 - Cursor pagination, ETags, and clear status codes are high-signal design choices.
 
-## Reference Materials
+## Reference materials
 
 - [RFC 9110 - HTTP Semantics](https://www.rfc-editor.org/rfc/rfc9110)
 - [RFC 9111 - HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111)

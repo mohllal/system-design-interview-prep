@@ -1,47 +1,78 @@
-# Load Balancing
+---
+title: "Load balancing"
+concepts:
+  - load-balancing-algorithms
+  - layer-4-load-balancing
+  - layer-7-load-balancing
+  - active-active-redundancy
+  - active-passive-redundancy
+  - horizontal-scaling
+  - vertical-scaling
+related:
+  - fundamentals/08-availability.md
+  - fundamentals/09-reliability.md
+  - fundamentals/10-scalability.md
+  - fundamentals/12-proxies.md
+  - fundamentals/14-resilience.md
+  - fundamentals/16-hashing.md
+---
+
+# Load balancing
 
 Load balancing distributes incoming requests across multiple servers to prevent any single server from becoming overwhelmed.
 
-**Core Benefits:**
+**Core benefits:**
 
 - Prevents server overload and bottlenecks
 - Improves application availability and fault tolerance
 - Enables horizontal scaling for growing traffic
 - Optimizes resource utilization across infrastructure
 
-## Scaling Strategies
+## Scaling strategies
 
-### Vertical Scaling (Scale Up)
+### Vertical scaling (scale up)
 
-**Approach**: Add more compute resources to existing machines
+**Approach**: Add more compute resources to existing machines.
 
-- Upgrade CPU, memory, storage on single server
-- ✅ Simple to implement, no architecture changes
-- ✅ No load balancing complexity
-- ❌ Hardware limits and diminishing returns
-- ❌ Expensive at scale
+- Upgrade CPU, memory, and storage on a single server
 
-### Horizontal Scaling (Scale Out)
+Pros:
 
-**Approach**: Add more machines to resource pool
+- Simple to implement, with no architecture changes
+- No load balancing complexity
+
+Cons:
+
+- Hardware limits and diminishing returns
+- Expensive at scale
+
+### Horizontal scaling (scale out)
+
+**Approach**: Add more machines to the resource pool.
 
 - Distribute load across multiple servers
-- ✅ Nearly unlimited scaling potential
-- ✅ Better fault tolerance and redundancy
-- ✅ Cost-effective with commodity hardware
-- ❌ Increased complexity and coordination
-- ❌ Requires load balancing and state management
 
-## Load Balancing Algorithms
+Pros:
+
+- Nearly unlimited scaling potential
+- Better fault tolerance and redundancy
+- Cost-effective with commodity hardware
+
+Cons:
+
+- Increased complexity and coordination
+- Requires load balancing and state management
+
+## Load balancing algorithms
 
 Different algorithms optimize for various factors like simplicity, performance, and session management.
 
 Load balancing algorithms can be categorized into two types:
 
 - **Static algorithms**: The mapping of requests to servers is determined in advance using fixed rules.
-- **Dynamic algorithms**: Decisions are made in real-time, based on current server load or performance metrics.
+- **Dynamic algorithms**: Decisions are made in real time, based on current server load or performance metrics.
 
-### Static Algorithms
+### Static algorithms
 
 **Round Robin**
 
@@ -59,18 +90,32 @@ sequenceDiagram
 ```
 
 - Distributes requests sequentially across servers
-- ✅ Simple implementation, predictable distribution
-- ✅ Works well with homogeneous servers
-- ❌ Doesn't consider server capacity or current load
-- **Use case**: Equal-capacity servers, stateless applications
+
+Pros:
+
+- Simple implementation, predictable distribution
+- Works well with homogeneous servers
+
+Cons:
+
+- Doesn't consider server capacity or current load
+
+**Use case**: Equal-capacity servers, stateless applications.
 
 **Weighted Round Robin**
 
 - Assigns weights based on server capacity
 - More powerful servers receive proportionally more requests
-- ✅ Accounts for different server capacities
-- ❌ Static weights don't adapt to real-time conditions
-- **Use case**: Heterogeneous server configurations
+
+Pros:
+
+- Accounts for different server capacities
+
+Cons:
+
+- Static weights don't adapt to real-time conditions
+
+**Use case**: Heterogeneous server configurations.
 
 **IP Hash (Consistent Assignment)**
 
@@ -92,85 +137,141 @@ sequenceDiagram
     LB->>S1: Hash(IP) → Server 1 (consistent mapping)
 ```
 
-- Uses client IP to determine target server
-- Same client always routes to same server
-- ✅ Maintains session affinity without sticky sessions
-- ❌ Uneven distribution if clients cluster by IP
-- **Use case**: Session-dependent applications, caching benefits
+- Uses the client IP to determine the target server
+- The same client always routes to the same server
 
-### Dynamic Algorithms
+Pros:
+
+- Maintains session affinity without sticky sessions
+
+Cons:
+
+- Uneven distribution if clients cluster by IP
+
+**Use case**: Session-dependent applications, caching benefits.
+
+### Dynamic algorithms
 
 **Least Connections**
 
-- Routes to server with fewest active connections
-- ✅ Better load distribution than round robin
-- ✅ Adapts to varying request processing times
-- ❌ Requires connection tracking overhead
-- **Use case**: Long-lived connections, varying request complexity
+- Routes to the server with the fewest active connections
+
+Pros:
+
+- Better load distribution than round robin
+- Adapts to varying request processing times
+
+Cons:
+
+- Requires connection tracking overhead
+
+**Use case**: Long-lived connections, varying request complexity.
 
 **Least Response Time**
 
 - Considers both connection count and response time
-- Routes to server with fastest response + fewest connections
-- ✅ Optimizes for performance
-- ❌ Higher computational overhead
-- **Use case**: Performance-critical applications
+- Routes to the server with the fastest response and fewest connections
+
+Pros:
+
+- Optimizes for performance
+
+Cons:
+
+- Higher computational overhead
+
+**Use case**: Performance-critical applications.
 
 **Resource-Based (Adaptive)**
 
 - Uses real-time server metrics (CPU, memory, custom metrics)
-- ✅ Most intelligent load distribution
-- ✅ Adapts to server health and capacity
-- ❌ Complex implementation and monitoring required
-- **Use case**: Critical applications, heterogeneous environments
 
-## Load Balancer Types
+Pros:
+
+- Most intelligent load distribution
+- Adapts to server health and capacity
+
+Cons:
+
+- Complex implementation and monitoring required
+
+**Use case**: Critical applications, heterogeneous environments.
+
+## Load balancer types
 
 Load balancers can be implemented at different layers and using various technologies.
 
-### By Decision Layer
+### By decision layer
 
 **Layer 4 Load Balancers (Transport Layer)**
 
 - Route traffic using network information like IP, port, and protocol (TCP/UDP)
 - Fast and efficient because they do not inspect full application payloads
-- ✅ Best fit for high-throughput services, raw TCP services, and low-latency routing
-- ❌ Limited visibility into HTTP paths, headers, or cookies
+
+Pros:
+
+- Best fit for high-throughput services, raw TCP services, and low-latency routing
+
+Cons:
+
+- Limited visibility into HTTP paths, headers, or cookies
 
 **Layer 7 Load Balancers (Application Layer)**
 
 - Route HTTP/HTTPS requests using URL path, host header, cookies, or request metadata
-- ✅ Enable advanced behaviors like path-based routing, API version routing, and canary releases
-- ✅ Commonly terminate TLS and integrate with WAF, auth checks, and observability tools
-- Higher flexibility with more processing overhead than Layer 4
 
-### By Deployment Model
+Pros:
+
+- Enable advanced behaviors like path-based routing, API version routing, and canary releases
+- Commonly terminate TLS and integrate with WAF, auth checks, and observability tools
+
+Higher flexibility, with more processing overhead than Layer 4.
+
+### By deployment model
 
 **Hardware Load Balancers**
 
 - Dedicated physical appliances (F5, Citrix NetScaler)
-- ✅ High performance and throughput
-- ✅ Advanced features and optimization
-- ❌ Expensive and vendor lock-in
-- ❌ Limited scalability and flexibility
+
+Pros:
+
+- High performance and throughput
+- Advanced features and optimization
+
+Cons:
+
+- Expensive and vendor lock-in
+- Limited scalability and flexibility
 
 **Software Load Balancers**
 
 - Applications running on standard servers (Nginx, HAProxy)
-- ✅ Cost-effective and flexible
-- ✅ Easy to scale and customize
-- ❌ Limited by server hardware capacity
-- ❌ Requires more management overhead
+
+Pros:
+
+- Cost-effective and flexible
+- Easy to scale and customize
+
+Cons:
+
+- Limited by server hardware capacity
+- Requires more management overhead
 
 **Cloud Load Balancers**
 
 - Managed services (AWS ALB/ELB, Google Cloud Load Balancer)
-- ✅ Fully managed, auto-scaling
-- ✅ Integrated with cloud ecosystem
-- ❌ Vendor lock-in and pricing concerns
-- ❌ Less control over configuration
 
-### By Traffic Visibility
+Pros:
+
+- Fully managed, auto-scaling
+- Integrated with cloud ecosystem
+
+Cons:
+
+- Vendor lock-in and pricing concerns
+- Less control over configuration
+
+### By traffic visibility
 
 **External (Public) Load Balancers**
 
@@ -184,21 +285,21 @@ Load balancers can be implemented at different layers and using various technolo
 - Not directly reachable from the public internet
 - Useful for microservices, internal APIs, and tier-to-tier communication
 
-### By Geographic Scope
+### By geographic scope
 
 **Regional Load Balancers**
 
 - Route traffic within one region to nearby availability zones or instances
-- Simpler to operate with lower cross-region complexity and cost
-- If the region fails, failover depends on separate disaster recovery setup
+- Simpler to operate, with lower cross-region complexity and cost
+- If the region fails, failover depends on a separate disaster recovery setup
 
 **Global Load Balancers**
 
 - Distribute traffic across multiple regions using geo/latency/policy-based routing
 - Improve resilience with automatic multi-region failover
-- Better global user experience, with higher operational complexity
+- Deliver a better global user experience, with higher operational complexity
 
-## Load Balancer Redundancy Topologies
+## Load balancer redundancy topologies
 
 Redundancy topology defines how multiple load balancers are arranged to avoid a single point of failure.
 
@@ -221,7 +322,7 @@ graph TD
     end
 ```
 
-### Active-Active
+### Active-active
 
 **Model**: Two or more load balancers serve traffic at the same time.
 
@@ -231,7 +332,7 @@ graph TD
 - Requires careful health checks, config consistency, and traffic steering
 - Can increase operational complexity during partial failures
 
-### Active-Passive
+### Active-passive
 
 **Model**: One load balancer is active while a secondary node stays on standby.
 
@@ -241,6 +342,6 @@ graph TD
 - Standby capacity is idle during normal operation
 - Recovery depends on failover detection and promotion time
 
-## Reference Materials
+## Reference materials
 
 - [DNS Support for Load Balancing (RFC 1794)](https://datatracker.ietf.org/doc/html/rfc1794)

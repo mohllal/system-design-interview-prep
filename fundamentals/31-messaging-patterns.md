@@ -1,4 +1,22 @@
-# Messaging Patterns
+---
+title: "Messaging patterns"
+concepts:
+  - message-queues
+  - publish-subscribe
+  - request-reply-pattern
+  - competing-consumers
+  - delivery-semantics
+  - dead-letter-queue
+  - idempotent-consumers
+  - event-streaming
+related:
+  - fundamentals/06-communication-patterns.md
+  - fundamentals/30-pub-sub.md
+  - fundamentals/14-resilience.md
+  - advanced/05-kafka-architecture.md
+---
+
+# Messaging patterns
 
 Messaging lets services communicate asynchronously through a broker, so producers and consumers do not need to be online at the same time or know each other's location.
 
@@ -6,7 +24,7 @@ The goal of this document is not to pick a single broker, but to choose the righ
 
 For the broader sync vs async choice, see [Communication Patterns](./06-communication-patterns.md). For fan-out specifically, see [Pub/Sub](./30-pub-sub.md).
 
-## Why Messaging
+## Why use messaging?
 
 - Decouples producer and consumer availability
 - Buffers traffic spikes instead of dropping or blocking work
@@ -15,7 +33,7 @@ For the broader sync vs async choice, see [Communication Patterns](./06-communic
 
 Messaging is a poor fit when the caller needs an immediate, strongly consistent answer and cannot tolerate eventual processing.
 
-## Core Building Blocks
+## Core building blocks
 
 - **Producer**: Sends a message to a channel
 - **Consumer**: Reads and processes messages
@@ -32,9 +50,9 @@ graph LR
     Q --> C2[Consumer B]
 ```
 
-## Channel Patterns
+## Channel patterns
 
-### Point-to-Point (Work Queue)
+### Point-to-point (work queue)
 
 Producer sends work to a queue. Each message is delivered to **one** consumer.
 
@@ -59,7 +77,7 @@ graph LR
 
 **Best fit:** Background jobs, order processing, email/notification pipelines, image/video processing.
 
-### Publish-Subscribe
+### Publish-subscribe
 
 Producer publishes an event to a topic. Every interested subscriber receives a copy.
 
@@ -83,7 +101,7 @@ graph TD
 
 **Best fit:** Event-driven architectures, analytics fan-out, integrations. See [Pub/Sub](./30-pub-sub.md).
 
-### Request-Reply
+### Request-reply
 
 Producer sends a request and waits for a response on a reply channel, matching messages with a correlation id.
 
@@ -111,7 +129,7 @@ sequenceDiagram
 
 **Best fit:** RPC-style work that is too slow or bursty for a direct HTTP call (report generation, payments with an async provider).
 
-### Fire-and-Forget
+### Fire-and-forget
 
 Producer sends a message and does not wait for processing or a reply.
 
@@ -127,7 +145,7 @@ Producer sends a message and does not wait for processing or a reply.
 
 **Best fit:** Telemetry, audit logs, non-critical notifications.
 
-## Competing Consumers
+## Competing consumers
 
 Multiple workers consume from the same queue so work is processed in parallel.
 
@@ -142,29 +160,29 @@ Design implications:
 
 **Best fit:** CPU/IO-bound job processing with no strict per-entity order.
 
-## Delivery Semantics
+## Delivery semantics
 
-### At-Most-Once
+### At-most-once
 
 Deliver, then forget. A crash can lose the message.
 
 Use for metrics or other data that is cheap to drop.
 
-### At-Least-Once
+### At-least-once
 
 Deliver, wait for ack, retry on failure. Duplicates are possible.
 
 This is the default in production systems. Consumers must be idempotent.
 
-### Exactly-Once
+### Exactly-once
 
 Appear to process each message once, with no loss.
 
 End-to-end exactly-once is expensive. In practice it is at-least-once delivery plus idempotent writes and deduplication keys.
 
-## Reliability Patterns
+## Reliability patterns
 
-### Acknowledgments and Retries
+### Acknowledgments and retries
 
 The consumer acks only after it has finished (or durably recorded) the work.
 
@@ -172,7 +190,7 @@ The consumer acks only after it has finished (or durably recorded) the work.
 - Cap retries so poison messages cannot block the queue forever
 - Distinguish retryable errors (timeouts) from permanent ones (bad payload)
 
-### Dead Letter Queue (DLQ)
+### Dead letter queue (DLQ)
 
 Messages that fail repeatedly are moved to a DLQ instead of being retried forever.
 
@@ -182,7 +200,7 @@ Use a DLQ to:
 - Inspect and replay poison messages
 - Alert when failure rate spikes
 
-### Idempotent Consumer
+### Idempotent consumer
 
 Because at-least-once delivery creates duplicates, processing the same message twice must not create duplicate side effects.
 
@@ -192,17 +210,17 @@ Common techniques:
 - Conditional writes (`WHERE version = ...`)
 - Dedup table keyed by message id with a TTL
 
-Example: payment event `pay_123` processed twice should charge once.
+Example: a payment event `pay_123` processed twice should still result in a single charge.
 
-### Poison Messages
+### Poison messages
 
 A message that can never succeed (invalid schema, missing required field, failed business invariant).
 
 Handle by sending it to the DLQ quickly, not by retrying it on the same backoff path as timeouts.
 
-## Routing Patterns
+## Routing patterns
 
-### Direct Routing
+### Direct routing
 
 Send to a named queue. The producer chooses the destination.
 
@@ -212,15 +230,15 @@ Simple and explicit. Tightens coupling to queue names.
 
 Broker copies the message to every bound queue.
 
-Same intent as pub/sub: one produce, many independent consumers.
+Same intent as pub/sub: one message published, many independent consumers.
 
-### Topic Routing
+### Topic routing
 
 Route by a routing key or subject (`orders.created`, `orders.*`).
 
 Useful when consumers want a subset of events without a separate topic per event type.
 
-### Content-Based Routing
+### Content-based routing
 
 Inspect the payload (or headers) and send the message to different consumers.
 
@@ -234,7 +252,7 @@ graph TD
     R -->|type=push| Q3[Push Queue]
 ```
 
-## Ordering, Partitioning, and Backpressure
+## Ordering, partitioning, and backpressure
 
 **Ordering**
 
@@ -253,17 +271,17 @@ graph TD
 - Bound queue depth, monitor lag, and apply load shedding or scale-out before the broker saturates
 - Prefetch/QoS limits how many unacked messages a consumer can hold
 
-## Queues vs Event Streams
+## Queues vs event streams
 
 These are often used as "messaging," but they solve different problems.
 
-| | Work queue (RabbitMQ, SQS) | Event stream (Kafka, Kinesis) |
-| --- | --- | --- |
-| Model | Message is consumed and removed | Append-only log; consumers keep an offset |
-| Typical use | Task distribution | Event history, fan-out, replay |
-| Retention | Until acked (plus a short retry window) | Hours to days (or longer) by policy |
-| Replay | Limited; usually needs a DLQ/replay tool | First-class: rewind the offset |
-| Competing consumers | Native | Consumer groups (one owner per partition) |
+| Aspect              | Work queue (RabbitMQ, SQS)               | Event stream (Kafka, Kinesis)             |
+| ------------------- | ---------------------------------------- | ----------------------------------------- |
+| Model               | Message is consumed and removed          | Append-only log; consumers keep an offset |
+| Typical use         | Task distribution                        | Event history, fan-out, replay            |
+| Retention           | Until acked (plus a short retry window)  | Hours to days (or longer) by policy       |
+| Replay              | Limited; usually needs a DLQ/replay tool | First-class: rewind the offset            |
+| Competing consumers | Native                                   | Consumer groups (one owner per partition) |
 
 Use a **queue** when a unit of work should be processed once by one worker.
 
@@ -271,7 +289,7 @@ Use a **stream** when multiple consumers need the same events, and you want rete
 
 For why a stream looks like a partitioned commit log, and which of those decisions transfer to other systems, see [Kafka Architecture](../advanced/05-kafka-architecture.md).
 
-## Pattern Selection Checklist
+## Pattern selection checklist
 
 When choosing a pattern, answer:
 
@@ -282,7 +300,7 @@ When choosing a pattern, answer:
 - What happens on poison messages: retry, DLQ, or drop?
 - Can consumers be idempotent? If not, messaging will create duplicate side effects.
 
-## Interview Talking Points
+## Interview talking points
 
 - Start from workload: job queue vs event fan-out vs request-reply.
 - State delivery semantics explicitly (usually at-least-once + idempotency).
@@ -290,7 +308,7 @@ When choosing a pattern, answer:
 - Mention DLQs, lag/backpressure, and per-key ordering via partitions.
 - Call out queue vs log/stream when the interviewer says "Kafka vs RabbitMQ/SQS."
 
-## Reference Materials
+## Reference materials
 
 - [Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/patterns/messaging/index.html)
 - [Application integration patterns for microservices: Fan-out strategies](https://aws.amazon.com/blogs/compute/application-integration-patterns-for-microservices-fan-out-strategies/)

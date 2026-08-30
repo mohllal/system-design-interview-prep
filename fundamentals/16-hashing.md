@@ -1,3 +1,19 @@
+---
+title: "Hashing"
+concepts:
+  - cryptographic-hashing
+  - non-cryptographic-hashing
+  - hash-distribution
+  - consistent-hashing
+  - virtual-nodes
+  - rendezvous-hashing
+related:
+  - fundamentals/13-load-balancing.md
+  - fundamentals/17-bloom-filters.md
+  - fundamentals/18-checksums.md
+  - fundamentals/24-database-partitioning.md
+---
+
 # Hashing
 
 Hashing transforms input data into fixed-size values through mathematical functions.
@@ -7,57 +23,62 @@ In distributed systems, hashing is crucial for data distribution, load balancing
 **Key Properties:**
 
 - **Deterministic**: Same input always produces same output
-- **Uniform Distribution**: Hash values spread evenly across output space
-- **Fixed Output Size**: Consistent hash length regardless of input size
-- **Avalanche Effect**: Small input changes cause large output changes
+- **Uniform distribution**: Hash values spread evenly across output space
+- **Fixed output size**: Consistent hash length regardless of input size
+- **Avalanche effect**: Small input changes cause large output changes
 
-## Cryptographic Hash Functions
+## Cryptographic hash functions
 
 **Purpose**: Security, integrity verification, digital signatures
 
-| Algorithm   | Output Size | Security          | Use Cases                         |
-|-------------|-------------|-------------------|-----------------------------------|
-| **MD5**     | 128-bit     | ❌ Broken          | Legacy systems only               |
-| **SHA-1**   | 160-bit     | ❌ Deprecated      | Avoid for new systems             |
-| **SHA-256** | 256-bit     | ✅ Secure          | Digital signatures, blockchain    |
-| **SHA-3**   | Variable    | ✅ Latest standard | Modern cryptographic applications |
+| Algorithm   | Output Size | Security        | Use Cases                         |
+| ----------- | ----------- | --------------- | --------------------------------- |
+| **MD5**     | 128-bit     | Broken          | Legacy systems only               |
+| **SHA-1**   | 160-bit     | Deprecated      | Avoid for new systems             |
+| **SHA-256** | 256-bit     | Secure          | Digital signatures, blockchain    |
+| **SHA-3**   | Variable    | Latest standard | Modern cryptographic applications |
 
-## Non-Cryptographic Hash Functions
+## Non-cryptographic hash functions
 
 **Purpose**: Fast hashing for data structures, load balancing
 
 | Algorithm      | Speed          | Quality   | Use Cases                        |
-|----------------|----------------|-----------|----------------------------------|
+| -------------- | -------------- | --------- | -------------------------------- |
 | **MurmurHash** | Very Fast      | Good      | Hash tables, caches              |
 | **CityHash**   | Fast           | Good      | Google's general-purpose hashing |
 | **xxHash**     | Extremely Fast | Excellent | High-performance applications    |
 
 **Trade-offs:**
 
-- ✅ Much faster than cryptographic hashes
-- ✅ Good distribution properties
-- ❌ Not secure against malicious attacks
-- ❌ Not suitable for security purposes
+Pros:
 
-## Hash Distribution and Uniformity
+- Much faster than cryptographic hashes
+- Good distribution properties
+
+Cons:
+
+- Not secure against malicious attacks
+- Not suitable for security purposes
+
+## Hash distribution and uniformity
 
 Good hash functions distribute values uniformly across the output space to minimize collisions and ensure balanced load distribution.
 
 **Factors Affecting Distribution:**
 
-- **Input Data Patterns**: Real-world data often has patterns that can cause skew
-- **Hash Function Quality**: Poor functions create clustering
-- **Output Space Size**: Larger spaces reduce collision probability
+- **Input data patterns**: Real-world data often has patterns that can cause skew
+- **Hash function quality**: Poor functions create clustering
+- **Output space size**: Larger spaces reduce collision probability
 
-## Distributed Hashing Techniques
+## Distributed hashing techniques
 
 Hashing in distributed systems requires special considerations for node changes and data rebalancing.
 
-## Consistent Hashing
+## Consistent hashing
 
 Consistent hashing solves the redistribution problem when nodes are added or removed from a distributed system.
 
-### Traditional Hashing Problems
+### Traditional hashing problems
 
 ```mermaid
 graph TD
@@ -69,15 +90,15 @@ graph TD
 
 **Problem**: When servers change, `hash(key) % server_count` changes for most keys, causing massive data movement.
 
-### Consistent Hashing Solution
+### Consistent hashing solution
 
 **Benefits:**
 
-- ✅ Adding/removing nodes only affects adjacent keys
-- ✅ Minimal data redistribution (O(K/N) keys affected)
-- ✅ Maintains load balance with virtual nodes
+- Adding/removing nodes only affects adjacent keys
+- Minimal data redistribution (O(K/N) keys affected)
+- Maintains load balance with virtual nodes
 
-### Implementation Details
+### Implementation details
 
 **Virtual Nodes (Replicas)**
 To improve load distribution, each physical node is mapped to multiple positions on the ring.
@@ -89,7 +110,7 @@ graph TD
     A --> D[Virtual Node A3<br/>Position: 250]
 ```
 
-**Kind of like this Implementation:**
+**Example implementation:**
 
 ```python
 class ConsistentHash:
@@ -124,7 +145,7 @@ class ConsistentHash:
         return self.ring[self.sorted_keys[0]]
 ```
 
-## Rendezvous Hashing (HRW)
+## Rendezvous hashing (HRW)
 
 Alternative approach where each node computes a weight for each key, and the highest weight wins.
 
@@ -137,7 +158,7 @@ graph TD
     E --> F[Highest Weight Wins<br/>Route to Node C]
 ```
 
-**Kind of like this Implementation:**
+**Example implementation:**
 
 ```python
 def get_node_hrw(key, nodes):
@@ -157,16 +178,16 @@ def get_node_hrw(key, nodes):
 **Rendezvous vs Consistent Hashing:**
 
 | Aspect           | Consistent Hashing             | Rendezvous Hashing                 |
-|------------------|--------------------------------|------------------------------------|
+| ---------------- | ------------------------------ | ---------------------------------- |
 | **Simplicity**   | More complex (ring management) | Simpler (direct calculation)       |
 | **Performance**  | O(log N) lookup                | O(N) calculation per lookup        |
 | **Load Balance** | Good (with virtual nodes)      | Excellent (mathematically uniform) |
 | **Node Changes** | Minimal redistribution         | Minimal redistribution             |
 | **Use Cases**    | Large-scale systems            | Smaller node counts                |
 
-## Performance Considerations
+## Performance considerations
 
-### Hash Function Selection
+### Hash function selection
 
 **For Security:**
 
@@ -183,7 +204,7 @@ def get_node_hrw(key, nodes):
 - Consistent hashing for dynamic node environments
 - Rendezvous hashing for smaller, stable clusters
 
-### Common Pitfalls
+### Common pitfalls
 
 **Poor Hash Distribution:**
 
@@ -200,10 +221,10 @@ def get_node_hrw(key, nodes):
 - Implement health checks and failover mechanisms
 - Use multiple hash rings for redundancy
 
-## Reference Materials
+## Reference materials
 
 - [Hashing Algorithms Overview](https://jscrambler.com/blog/hashing-algorithms)
-- [Consistent Hashing Deep Dive](https://www.toptal.com/big-data/consistent-hashing)  
+- [Consistent Hashing Deep Dive](https://www.toptal.com/big-data/consistent-hashing)
 - [Consistent Hashing Tradeoffs](https://dgryski.medium.com/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8)
 - [Amazon DynamoDB Partitioning](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.Partitions.html)
 - [Cassandra Dataset Partitioning using Consistent Hashing](https://cassandra.apache.org/doc/latest/cassandra/architecture/dynamo.html#dataset-partitioning-consistent-hashing)

@@ -1,16 +1,32 @@
-# Leader Election
+---
+title: "Leader election"
+concepts:
+  - leader-follower-pattern
+  - quorum-based-election
+  - lease-based-election
+  - failover
+  - split-brain
+  - fencing
+related:
+  - fundamentals/29-consensus.md
+  - fundamentals/23-database-replication.md
+  - fundamentals/27-cap-and-pacelc-theorems.md
+  - fundamentals/08-availability.md
+---
 
-The leader-follower pattern assigns one node as coordinator (leader) and others as replicas/workers (followers).
+# Leader election
+
+The leader-follower pattern assigns one node as coordinator (leader) and the others as replicas or workers (followers).
 
 Leader election is the mechanism that selects a new leader when the current one fails or becomes unreachable.
 
 **Why this pattern is used:**
 
 - **Single write coordinator**: Reduces conflicting updates
-- **Fast failover**: New leader can be promoted automatically
+- **Fast failover**: A new leader can be promoted automatically
 - **Scalability**: Followers can handle reads or parallel work
 
-## Leader-Follower Pattern
+## Leader-follower pattern
 
 ```mermaid
 graph TD
@@ -20,7 +36,7 @@ graph TD
     L --> F3[Follower 3]
 ```
 
-### Typical Responsibilities
+### Typical responsibilities
 
 **Leader**
 
@@ -32,30 +48,30 @@ graph TD
 
 - Replicate leader updates
 - Serve reads in some architectures
-- Participate in election when leader is unavailable
+- Participate in election when the leader is unavailable
 
-## Election Triggers
+## Election triggers
 
 Leader election usually starts when:
 
-- Heartbeats from leader stop for a timeout window
+- Heartbeats from the leader stop for a timeout window
 - Health checks detect leader failure
-- Network partition isolates the current leader
-- Planned maintenance requires leadership transfer
+- A network partition isolates the current leader
+- Planned maintenance requires a leadership transfer
 
-## Common Election Approaches
+## Common election approaches
 
-### Quorum Voting (Majority-Based)
+### Quorum voting (majority-based)
 
-- Candidate requests votes from peer nodes
-- Node with majority votes becomes leader
-- Prevents multiple leaders in normal conditions
+- A candidate requests votes from peer nodes
+- The node with a majority of votes becomes leader
+- Prevents multiple leaders under normal conditions
 - Widely used in production systems
 
-### Lease-Based Election
+### Lease-based election
 
-- Leadership is tied to a renewable lease with TTL
-- If lease expires, other nodes can acquire leadership
+- Leadership is tied to a renewable lease with a TTL
+- If the lease expires, other nodes can acquire leadership
 - Simple mental model with automatic expiration
 - Needs careful timeout and clock-skew handling
 
@@ -72,40 +88,40 @@ sequenceDiagram
     N1->>S: Renew lease
 ```
 
-## Failure Modes and Trade-offs
+## Failure modes and trade-offs
 
 **Pros:**
 
-- ✅ Clear coordination boundary
-- ✅ Easier conflict handling for writes
-- ✅ Predictable failover path
+- Clear coordination boundary
+- Easier conflict handling for writes
+- Predictable failover path
 
 **Cons:**
 
-- ❌ Leader can become bottleneck under heavy write load
-- ❌ Election periods can cause short unavailability
-- ❌ Split-brain risk if failure detection is weak
+- The leader can become a bottleneck under heavy write load
+- Election periods can cause short unavailability
+- Split-brain risk if failure detection is weak
 
-## Design Guidelines
+## Design guidelines
 
 - Keep election timeouts randomized to avoid vote collisions
 - Use quorum rules; avoid leadership decisions by a single node
 - Fence old leaders after failover to prevent double-writes
-- Tune heartbeat and timeout values for your network latency profile
+- Tune heartbeat and timeout values for your network's latency profile
 - Test failover regularly with chaos/fault-injection drills
 
-## Real-World Examples
+## Real-world examples
 
-- **Kubernetes control plane**: Controllers use leader election for active coordinator selection
+- **Kubernetes control plane**: Controllers use leader election to select the active coordinator
 - **etcd/Consul-backed services**: Use leases and quorum-based elections
-- **Primary-replica databases**: Promote a replica when primary fails
+- **Primary-replica databases**: Promote a replica when the primary fails
 
-## Related Topic
+## Leader election vs consensus
 
-Leader election decides *who leads*. Consensus decides *what value/state the cluster accepts*.
+Leader election decides *who leads*. Consensus decides *what value or state the cluster accepts*.
 
 See [Consensus](./29-consensus.md) for the agreement protocol side.
 
-## Reference Materials
+## Reference materials
 
 - [Implementing Lease-Based Leader Election Using Azure Blob Storage](https://learn.microsoft.com/en-us/azure/architecture/patterns/leader-election)

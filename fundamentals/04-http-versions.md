@@ -1,10 +1,29 @@
-# HTTP Versions Evolution
+---
+title: "HTTP versions evolution"
+concepts:
+  - http-1.1
+  - http-2
+  - http-3
+  - multiplexing
+  - header-compression
+  - head-of-line-blocking
+  - quic
+  - connection-migration
+related:
+  - fundamentals/02-network-protocols.md
+  - fundamentals/03-latency-and-throughput.md
+  - fundamentals/05-rest-api.md
+  - fundamentals/11-caching.md
+  - fundamentals/34-cdn.md
+---
+
+# HTTP versions evolution
 
 HTTP has evolved from a simple text protocol to a multiplexed, secure, low-latency transport for modern web applications.
 
 This note summarizes what each major version introduced and why it matters in system design.
 
-## Version Timeline
+## Version timeline
 
 ```mermaid
 timeline
@@ -57,28 +76,28 @@ timeline
 
 - Became the long-term default web protocol
 - Major performance improvement over HTTP/1.0
-- Still suffers from head-of-line blocking at application layer when pipelining is not effective
+- Still suffers from head-of-line blocking at the application layer when pipelining is not effective
 
-### Persistent Connections (HTTP/1.1)
+### Persistent connections (HTTP/1.1)
 
 Instead of opening a new TCP connection for every request, client and server reuse the same connection for multiple requests.
 
-- Why useful: avoids repeated TCP/TLS setup cost
-- Impact: lower latency and less CPU/network overhead
+- **Why useful**: Avoids repeated TCP/TLS setup cost
+- **Impact**: Lower latency and less CPU/network overhead
 
-### Chunked Transfer Encoding (HTTP/1.1)
+### Chunked transfer encoding (HTTP/1.1)
 
-Server sends a response in pieces ("chunks") when total response size is unknown at start.
+Server sends a response in pieces ("chunks") when the total response size is unknown at the start.
 
-- Example: streaming generated HTML/report rows while backend is still computing
-- Why useful: user starts receiving data earlier
+- **Example**: Streaming generated HTML/report rows while the backend is still computing
+- **Why useful**: User starts receiving data earlier
 
-### HTTP Pipelining (HTTP/1.1, rarely used)
+### HTTP pipelining (HTTP/1.1, rarely used)
 
 Client can send multiple requests on one connection without waiting for each response first.
 
-- Limitation: responses must still return in order
-- Practical issue: one slow response can block later ones (application-layer HOL blocking)
+- **Limitation**: Responses must still return in order
+- **Practical issue**: One slow response can block later ones (application-layer HOL blocking)
 
 ## HTTP/2
 
@@ -100,28 +119,28 @@ Client can send multiple requests on one connection without waiting for each res
 Many request/response streams share one connection concurrently.
 
 - Unlike pipelining, responses can interleave by stream
-- Why useful: page assets (CSS/JS/images/API calls) can flow in parallel
+- **Why useful**: Page assets (CSS/JS/images/API calls) can flow in parallel
 
-### Binary Framing (HTTP/2)
+### Binary framing (HTTP/2)
 
 HTTP/2 encodes messages as compact binary frames instead of plain text lines.
 
-- Why useful: easier and faster for machines to parse
+- **Why useful**: Easier and faster for machines to parse
 - Enables stream management features such as multiplexing and prioritization
 
-### Header Compression (HTTP/2 - HPACK)
+### Header compression (HTTP/2 - HPACK)
 
 Repeated headers are compressed across requests on the same connection.
 
-- Example: headers like `Cookie`, `User-Agent`, and auth metadata repeat often
-- Why useful: significantly reduces overhead for chatty web/app traffic
+- **Example**: Headers like `Cookie`, `User-Agent`, and auth metadata repeat often
+- **Why useful**: Significantly reduces overhead for chatty web/app traffic
 
-### TCP Head-of-Line Blocking (HTTP/2 limitation)
+### TCP head-of-line blocking (HTTP/2 limitation)
 
 Even with HTTP/2 multiplexing, all streams still ride on one TCP connection.
 If one TCP packet is lost, later data waits for retransmission.
 
-- Result: tail latency spikes under packet loss
+- **Result**: Tail latency spikes under packet loss
 
 ## HTTP/3
 
@@ -138,26 +157,26 @@ If one TCP packet is lost, later data waits for retransmission.
 - Improved user experience for real-time and globally distributed workloads
 - Operational changes required (UDP handling, middlebox behavior, observability updates)
 
-### QUIC Streams and No TCP HOL Blocking (HTTP/3)
+### QUIC streams and no TCP HOL blocking (HTTP/3)
 
 HTTP/3 uses QUIC over UDP with independent streams. Packet loss on one stream does not block unrelated streams.
 
-- Why useful: better performance on lossy/mobile networks
+- **Why useful**: Better performance on lossy/mobile networks
 
-### Connection Migration (HTTP/3/QUIC)
+### Connection migration (HTTP/3/QUIC)
 
-A connection can survive client IP/network changes (for example Wi-Fi -> 5G).
+A connection can survive client IP/network changes (for example, Wi-Fi -> 5G).
 
-- Why useful: fewer broken sessions during network handoffs
+- **Why useful**: Fewer broken sessions during network handoffs
 
-## Interview Talking Points
+## Interview talking points
 
 - HTTP/1.1 -> HTTP/2 mostly improves efficiency through multiplexing and compression.
 - HTTP/2 -> HTTP/3 mostly improves behavior under loss and mobility via QUIC.
 - HTTP versions keep application semantics familiar while changing transport behavior.
 - In practice, systems often run mixed versions based on client and CDN/proxy support.
 
-## Reference Materials
+## Reference materials
 
 - [RFC 1945 - HTTP/1.0](https://www.rfc-editor.org/rfc/rfc1945)
 - [RFC 9112 - HTTP/1.1](https://www.rfc-editor.org/rfc/rfc9112)

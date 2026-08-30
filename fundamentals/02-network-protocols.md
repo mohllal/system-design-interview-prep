@@ -1,8 +1,23 @@
-# Network Protocols
+---
+title: "Network protocols"
+concepts:
+  - tcp-ip-model
+  - network-layers
+  - data-encapsulation
+  - dns-resolution
+  - tcp-three-way-handshake
+  - tls-handshake
+  - http-request-lifecycle
+related:
+  - fundamentals/01-client-server.md
+  - fundamentals/04-http-versions.md
+---
+
+# Network protocols
 
 Network protocols define how devices communicate across networks.
 
-## TCP/IP Network Model
+## TCP/IP network model
 
 The TCP/IP model provides a layered approach to network communication, with each layer serving specific functions.
 
@@ -13,33 +28,16 @@ graph TD
     C --> D[Link Layer<br/>Ethernet, Wi-Fi, PPP]
 ```
 
-### Layers
+### The four layers
 
-**1. Application Layer**
+| Layer       | Function                                                                                       | Protocols                       |
+| ----------- | ---------------------------------------------------------------------------------------------- | ------------------------------- |
+| Application | Provides network services to applications; handles user interfaces and data formatting         | HTTP/HTTPS, FTP, SMTP, DNS, SSH |
+| Transport   | Ensures reliable end-to-end communication; handles flow control, error detection, and recovery | TCP (reliable), UDP (fast)      |
+| Internet    | Routes packets across networks; handles addressing and fragmentation                           | IP (IPv4/IPv6), ICMP, ARP       |
+| Link        | Manages physical network connections; handles frame transmission and error detection           | Ethernet, Wi-Fi, PPP            |
 
-- Provides network services to applications
-- Handles user interfaces and data formatting
-- **Protocols**: HTTP/HTTPS, FTP, SMTP, DNS, SSH
-
-**2. Transport Layer**
-
-- Ensures reliable end-to-end communication
-- Handles flow control, error detection, and recovery
-- **Protocols**: TCP (reliable), UDP (fast)
-
-**3. Internet Layer**
-
-- Routes packets across networks
-- Handles addressing and fragmentation
-- **Protocols**: IP (IPv4/IPv6), ICMP, ARP
-
-**4. Link Layer**
-
-- Manages physical network connections
-- Handles frame transmission and error detection
-- **Protocols**: Ethernet, Wi-Fi, PPP
-
-## Data Encapsulation Process
+## Data encapsulation process
 
 Each layer adds its own header (and sometimes trailer) to the data from the layer above.
 
@@ -50,30 +48,30 @@ graph TD
     C --> D["Ethernet Frame<br/>[Ethernet Header | IP Packet | Trailer]"]
 ```
 
-### Encapsulation Steps
+### Encapsulation steps
 
 **1. Application Layer**
 
-- Data: HTTP request, email message, file content
-- Format: Protocol-specific (JSON, HTML, binary)
+- **Data**: HTTP request, email message, file content
+- **Format**: Protocol-specific (JSON, HTML, binary)
 
 **2. Transport Layer**
 
-- **TCP Segments**: Include sequence numbers, acknowledgment numbers, window size
-- **UDP Datagrams**: Include source/destination ports, length, checksum
-- Adds: Port information, flow control, error detection
+- **TCP segments**: Include sequence numbers, acknowledgment numbers, window size
+- **UDP datagrams**: Include source/destination ports, length, checksum
+- **Adds**: Port information, flow control, error detection
 
 **3. Internet Layer**
 
-- **IP Packets**: Include source/destination IP addresses, TTL, protocol type
-- Adds: Routing information, fragmentation control, quality of service
+- **IP packets**: Include source/destination IP addresses, TTL, protocol type
+- **Adds**: Routing information, fragmentation control, quality of service
 
 **4. Link Layer**
 
 - **Frames**: Include source/destination MAC addresses, frame type, CRC
-- Adds: Physical addressing, error detection, frame boundaries
+- **Adds**: Physical addressing, error detection, frame boundaries
 
-## What Happens When You Type `example.com` in Your Browser?
+## What happens when you type `example.com` in your browser?
 
 ```mermaid
 sequenceDiagram
@@ -104,7 +102,7 @@ sequenceDiagram
     Note over B,S: 6. Connection Close
 ```
 
-### Detailed Steps
+### Detailed steps
 
 **1. DNS Resolution**
 
@@ -144,11 +142,11 @@ sequenceDiagram
 
 **8. Connection Management**
 
-- HTTP/1.1: Keep-alive or close
-- HTTP/2: Multiplexed streams
-- HTTP/3: QUIC protocol over UDP
+- **HTTP/1.1**: Keep-alive or close
+- **HTTP/2**: Multiplexed streams
+- **HTTP/3**: QUIC protocol over UDP
 
-## Reference Materials
+## Reference materials
 
 - [RFC 9293 - Transmission Control Protocol (TCP)](https://www.rfc-editor.org/rfc/rfc9293)
 - [RFC 768 - User Datagram Protocol (UDP)](https://www.rfc-editor.org/rfc/rfc768)

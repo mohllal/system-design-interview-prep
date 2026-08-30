@@ -1,4 +1,21 @@
-# Latency and Throughput
+---
+title: "Latency and throughput"
+concepts:
+  - latency-components
+  - tail-latency
+  - percentiles
+  - bandwidth-delay-product
+  - littles-law
+  - bottleneck-analysis
+related:
+  - fundamentals/02-network-protocols.md
+  - fundamentals/11-caching.md
+  - fundamentals/15-observability.md
+  - fundamentals/33-back-of-the-envelope-calculations.md
+  - fundamentals/10-scalability.md
+---
+
+# Latency and throughput
 
 Latency and throughput are core performance metrics that answer two different questions:
 
@@ -18,7 +35,7 @@ Common components:
 - **Processing delay**: App/DB compute time
 - **Queuing delay**: Waiting in overloaded queues
 
-### Why Percentiles Matter
+### Why percentiles matter
 
 Average latency can hide bad user experience.
 
@@ -30,7 +47,7 @@ In interviews, mention tail latency explicitly.
 
 ## Throughput
 
-Throughput is the amount of work completed /transmitted per second (for example, requests/sec, MB/sec).
+Throughput is the amount of work completed/transmitted per second (for example, requests/sec, MB/sec).
 
 Key terms:
 
@@ -40,11 +57,11 @@ Key terms:
 
 Example:
 
-- Link bandwidth: 1 Gbps
-- Effective throughput: 850 Mbps
-- Goodput after protocol overhead: lower still (e.g. 700 Mbps)
+- **Link bandwidth**: 1 Gbps
+- **Effective throughput**: 850 Mbps
+- **Goodput after protocol overhead**: Lower still (e.g. 700 Mbps)
 
-## Latency vs Throughput Relationship
+## Latency vs throughput relationship
 
 They are related but not identical.
 
@@ -57,25 +74,25 @@ Practical rule:
 - Optimize latency for user-facing paths
 - Optimize throughput for batch/background pipelines
 
-## Common Bottlenecks
+## Common bottlenecks
 
-**Latency bottlenecks:**
+### Latency bottlenecks
 
 - Long network paths and DNS/TLS setup
 - Slow DB queries and N+1 access patterns
 - Synchronous dependency chains
 - Lock/contention hotspots
 
-**Throughput bottlenecks:**
+### Throughput bottlenecks
 
 - CPU/memory saturation
 - DB connection pool limits
 - Disk I/O limits
 - Single-threaded or serial stages
 
-## Optimization Strategies
+## Optimization strategies
 
-### Reduce Latency
+### Reduce latency
 
 - Place data/services closer to users (CDN, regional deployment)
 - Use connection reuse and modern HTTP (HTTP/2/3)
@@ -83,7 +100,7 @@ Practical rule:
 - Parallelize independent work
 - Remove unnecessary remote calls
 
-### Increase Throughput
+### Increase throughput
 
 - Scale out stateless services
 - Batch writes/reads where safe
@@ -91,9 +108,9 @@ Practical rule:
 - Compress payloads when CPU cost is acceptable
 - Tune pool sizes and queue concurrency
 
-## Useful Formulas
+## Useful formulas
 
-### Bandwidth-Delay Product
+### Bandwidth-delay product
 
 The **Bandwidth-Delay Product (BDP)** is the amount of data that can be "in flight" (sent but not yet acknowledged) on a network link.
 
@@ -114,11 +131,11 @@ This means the sender needs to have **1.25 MB of unacknowledged data in flight**
 
 If the TCP window is only **64 KB**, the sender will frequently pause waiting for ACKs, achieving only a small fraction of the available 100 Mbps bandwidth.
 
-### Little's Law
+### Little's law
 
 `Average concurrency = Arrival rate x Average response time`
 
-The **Little's Law** relates the number of requests being processed simultaneously (concurrency) to the request arrival rate and the average time each request spends in the system.
+**Little's Law** relates the number of requests being processed simultaneously (concurrency) to the request arrival rate and the average time each request spends in the system.
 
 **Why it matters:** It helps estimate how many requests your application must handle concurrently, making it useful for sizing thread pools, connection pools, queues, and other limited resources.
 
@@ -131,7 +148,7 @@ Average concurrency = `1,000 × 0.2 = 200`
 
 This means that, on average, **200 requests are in flight** at any given time. If your server can only handle **100 concurrent requests**, requests will start queueing, increasing latency and potentially causing timeouts.
 
-## Interview Talking Points
+## Interview talking points
 
 - Clarify whether the requirement is low latency, high throughput, or both.
 - Always discuss percentiles (p95/p99), not only averages.

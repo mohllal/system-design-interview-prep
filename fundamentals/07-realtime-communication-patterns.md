@@ -1,4 +1,22 @@
-# Real-Time Communication Patterns
+---
+title: "Real-time communication patterns"
+concepts:
+  - short-polling
+  - long-polling
+  - server-sent-events
+  - websockets
+  - connection-heartbeat
+  - reconnect-backoff
+  - backpressure
+  - pub-sub-fanout
+related:
+  - fundamentals/06-communication-patterns.md
+  - fundamentals/12-proxies.md
+  - fundamentals/13-load-balancing.md
+  - fundamentals/30-pub-sub.md
+---
+
+# Real-time communication patterns
 
 Real-time communication patterns let clients receive updates quickly without constantly reloading pages or polling aggressively.
 
@@ -8,7 +26,7 @@ The main choice is how the client gets new data:
 - Hold a request open until data arrives (long polling)
 - Keep a persistent connection for server push (SSE/WebSockets)
 
-## Pattern Overview
+## Pattern overview
 
 ```mermaid
 graph TD
@@ -23,7 +41,7 @@ graph TD
     E --> I[Two-way persistent channel]
 ```
 
-## Short Polling
+## Short polling
 
 Client sends HTTP requests on a fixed interval (for example, every 2-5 seconds).
 
@@ -49,9 +67,9 @@ Best fit:
 - Admin dashboards with low update frequency
 - Simple integrations where near-real-time is enough
 
-## Long Polling
+## Long polling
 
-Client opens a request and server holds it open until an update exists (or timeout), then client immediately opens another request.
+Client opens a request, and the server holds it open until an update exists (or a timeout occurs). The client then immediately opens another request.
 
 How it works:
 
@@ -75,9 +93,9 @@ Cons:
 Best fit:
 
 - Notification feeds, live status pages
-- When WebSockets are hard due to infra constraints
+- When WebSockets are hard due to infrastructure constraints
 
-## Server-Sent Events (SSE)
+## Server-sent events (SSE)
 
 Persistent one-way HTTP stream from server to client using `text/event-stream`.
 
@@ -99,7 +117,7 @@ Cons:
 
 - One-way only (server -> client)
 - Client updates still need normal HTTP requests
-- Some proxies/load balancers need careful timeout config
+- Some proxies/load balancers need careful timeout configuration
 
 Best fit:
 
@@ -108,7 +126,7 @@ Best fit:
 
 ## WebSockets
 
-Full-duplex persistent connection after HTTP upgrade handshake.
+Full-duplex persistent connection after an HTTP upgrade handshake.
 
 How it works:
 
@@ -120,7 +138,7 @@ How it works:
 Pros:
 
 - Low latency, bidirectional communication
-- Efficient for high-frequency messages (chat, games, collab)
+- Efficient for high-frequency messages (chat, games, collaboration)
 - Single long-lived connection
 
 Cons:
@@ -134,7 +152,7 @@ Best fit:
 - Chat, collaborative editing, multiplayer apps
 - High-frequency two-way messaging
 
-## How to Choose
+## How to choose
 
 Ask:
 
@@ -142,7 +160,7 @@ Ask:
 - Required update latency (seconds vs milliseconds)?
 - Message frequency and payload size?
 - Client environment (browser/mobile/IoT)?
-- Infra constraints (proxies, LB timeouts, firewalls)?
+- Infrastructure constraints (proxies, LB timeouts, firewalls)?
 
 Practical defaults:
 
@@ -150,22 +168,22 @@ Practical defaults:
 - Use SSE for one-way live feeds
 - Use WebSockets when bidirectional low-latency is required
 
-## Operational Considerations
+## Operational considerations
 
-- Set connection/timeouts correctly on proxies and LBs
+- Set connection timeouts correctly on proxies and load balancers
 - Implement heartbeat/ping to detect dead connections
 - Plan reconnect with exponential backoff
 - Use backpressure (queue limits, drop/slow policies) under overload
 - Scale with pub/sub fan-out when many connected clients exist
 
-## Interview Talking Points
+## Interview talking points
 
-- Explain trade-off between simplicity and latency first.
+- Explain the trade-off between simplicity and latency first.
 - Match pattern to directionality: SSE (one-way) vs WebSocket (two-way).
 - Mention connection lifecycle: reconnect, heartbeat, timeout, fan-out.
-- Avoid defaulting to WebSockets unless interaction truly needs it.
+- Avoid defaulting to WebSockets unless the interaction truly needs it.
 
-## Reference Materials
+## Reference materials
 
 - [MDN - Server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
 - [MDN - WebSockets API](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)

@@ -72,3 +72,7 @@ Estimation and performance analysis techniques.
 | Topic                                                                          | Key Concepts                               |
 | ------------------------------------------------------------------------------ | ------------------------------------------ |
 | [Back-of-the-Envelope Calculations](./33-back-of-the-envelope-calculations.md) | Estimation techniques, performance numbers |
+
+---
+
+**Tip**: Each topic includes a reference materials section with curated external resources for deeper exploration.

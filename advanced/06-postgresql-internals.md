@@ -1,4 +1,22 @@
-# PostgreSQL Internals
+---
+title: "PostgreSQL internals"
+concepts:
+  - mvcc
+  - write-ahead-log
+  - buffer-cache
+  - vacuum
+  - heap-storage
+  - hot-updates
+  - query-planner
+  - index-only-scan
+related:
+  - fundamentals/19-relational-databases.md
+  - fundamentals/22-database-indexes.md
+  - fundamentals/25-database-concurrency-control.md
+  - fundamentals/23-database-replication.md
+---
+
+# PostgreSQL internals
 
 PostgreSQL is a process-based relational engine with an **unordered heap**, **MVCC on the heap**, a **WAL**, and a **cost-based planner**.
 
@@ -18,9 +36,10 @@ LSM engines (RocksDB, Cassandra) write immutable files and compact later.
 The questions stay the same.
 The answers move.
 
-Related: [Relational Databases](../fundamentals/19-relational-databases.md), [Indexes](../fundamentals/22-database-indexes.md), [Concurrency Control](../fundamentals/25-database-concurrency-control.md), [Replication](../fundamentals/23-database-replication.md).
+Related: [Relational Databases](../fundamentals/19-relational-databases.md), [Indexes](../fundamentals/22-database-indexes.md),
+[Concurrency Control](../fundamentals/25-database-concurrency-control.md), [Replication](../fundamentals/23-database-replication.md).
 
-## The Stack
+## The stack
 
 ```plaintext
 SQL
@@ -39,17 +58,16 @@ It pins **pages** in the buffer cache, then reads **tuples** from those pages.
 Names change (buffer pool, redo log, tablespace).
 The layers do not.
 
-## On Disk: The File System View
+## On disk: the file system view
 
 A cluster lives in one data directory (`PGDATA`).
 
 Important pieces:
 
-- **`base/`** — per-database directories.
-  Each table and index is one or more files named by **relfilenode** (an OID).
-- **`pg_wal/`** — write-ahead log segments (usually 16MB files).
-- **`pg_tblspc/`** — tablespaces (files on another filesystem).
-- **`global/`** — cluster-wide catalogs.
+- **`base/`**: Per-database directories. Each table and index is one or more files named by **relfilenode** (an OID).
+- **`pg_wal/`**: Write-ahead log segments (usually 16MB files).
+- **`pg_tblspc/`**: Tablespaces (files on another filesystem).
+- **`global/`**: Cluster-wide catalogs.
 
 A relation file grows in **1GB segments** (`12345`, then `12345.1`).
 That is an OS-friendly cap, not a logical table size limit.
@@ -74,11 +92,10 @@ You do not change it later.
                                               growing ←     → growing
 ```
 
-- **Page header:** LSN, checksum, flags, lower/upper offsets
-- **Item identifiers (line pointers):** array from the start.
-  Slot `i` points at a tuple (or is unused / redirected)
-- **Tuples:** packed from the **end** of the page toward the middle
-- **Free space:** the gap in the middle
+- **Page header**: LSN, checksum, flags, lower/upper offsets.
+- **Item identifiers (line pointers)**: An array from the start of the page. Slot `i` points at a tuple (or is unused or redirected).
+- **Tuples**: Packed from the end of the page toward the middle.
+- **Free space**: The gap in the middle.
 
 A row version's address is **`ctid`**: `(block_number, offset_number)`.
 That is the heap pointer indexes store.
@@ -96,7 +113,7 @@ Inserts ask it "which page has room?" instead of scanning the heap.
 The header + slot + records-from-the-end layout is a classic slotted page.
 Almost every row store uses it.
 
-## The Heap
+## The heap
 
 Postgres tables are a **heap**: rows are not stored in primary-key order.
 
@@ -107,11 +124,8 @@ That is the opposite of InnoDB, where the **primary key is the table** (clustere
 
 Trade-off:
 
-- Heap: inserts do not split a PK btree.
-  Secondary indexes point at `ctid`.
-  An update that moves the row must update **every** secondary index (unless HOT).
-- Clustered PK: PK lookup is one tree.
-  Secondary indexes store the PK, then you look up the clustered row (bookmark lookup).
+- **Heap**: Inserts do not split a PK btree. Secondary indexes point at `ctid`. An update that moves the row must update **every** secondary index (unless HOT).
+- **Clustered PK**: PK lookup is one tree. Secondary indexes store the PK, then you look up the clustered row (bookmark lookup).
 
 **TOAST** (The Oversized-Attribute Storage Technique):
 values that do not fit on a page (long TEXT/JSONB/BYTEA) go to a side table, maybe compressed.
@@ -129,7 +143,7 @@ That avoids index maintenance on the hot path.
 If indexed columns change, or the page is full, you get a new heap tuple and index updates.
 That is why a widening update storm bloats both heap and indexes.
 
-## Buffer Cache
+## Buffer cache
 
 `shared_buffers` is a shared memory cache of pages.
 
@@ -184,8 +198,8 @@ Postgres implements MVCC **in the heap**.
 
 Each tuple version has:
 
-- **`xmin`** — transaction that created it
-- **`xmax`** — transaction that deleted or replaced it (0 if live)
+- **`xmin`**: Transaction that created it.
+- **`xmax`**: Transaction that deleted or replaced it (0 if live).
 
 A query takes a **snapshot**: which transaction IDs are in progress, which are committed.
 
@@ -210,21 +224,19 @@ Different place the versions live.
 
 Costs in Postgres:
 
-- Updates produce **dead tuples** until VACUUM
+- Updates produce **dead tuples** until VACUUM runs
 - Table and index **bloat** if vacuum cannot keep up
-- **Transaction ID wraparound**: `xmin` is 32-bit.
-  Very old tuples must be **frozen** so IDs can reuse.
-  If freeze lag is ignored, the cluster stops writes to protect data.
+- **Transaction ID wraparound**: `xmin` is 32-bit. Very old tuples must be **frozen** so IDs can be reused. If freeze lag is ignored, the cluster stops writes to protect data.
 
 **Hint bits** cache "this xmin committed" on the tuple so later readers skip `pg_xact`.
-First reader after commit may set them.
+The first reader after commit may set them.
 That is an extra write for a read.
 
 Isolation:
 
-- Default **Read Committed**: new statement, new snapshot.
-- **Repeatable Read**: one snapshot for the transaction.
-- **Serializable**: snapshot plus SSI (detect write skew, abort one transaction).
+- **Read Committed** (default): New statement, new snapshot.
+- **Repeatable Read**: One snapshot for the whole transaction.
+- **Serializable**: Snapshot plus SSI (detect write skew, abort one transaction).
 
 Anomalies and when to lock: [concurrency control](../fundamentals/25-database-concurrency-control.md).
 
@@ -240,24 +252,23 @@ It:
 - Removes dead index entries (or leaves work for later)
 
 **Autovacuum** does this in the background.
-If it is too weak, tables bloat, then queries randomly get slow, then wraparound alarms.
+If it is too weak, tables bloat, queries randomly get slower, and eventually wraparound alarms fire.
 
 `VACUUM FULL` rewrites the table.
-It is a lock-heavy compact, not the normal path.
+It is a lock-heavy compaction, not the normal path.
 
 **Elsewhere:** InnoDB purge thread (undo).
 LSM compaction (drop obsolete keys).
 Every MVCC or LSM engine has a **reclaim process**.
 If you do not run it, you buy space and latency with interest.
 
-## Indexes (Postgres-Specific)
+## Indexes (Postgres-specific)
 
 Generic btree / hash / bitmap / LSM: [database indexes](../fundamentals/22-database-indexes.md).
 
 Postgres defaults:
 
-- B+tree on the heap.
-  Leaf value is **`ctid`**, not the primary key.
+- B+tree on the heap. Leaf value is **`ctid`**, not the primary key.
 - The table is **not** clustered on the PK unless you `CLUSTER` (a one-shot rewrite, not maintained).
 
 **Index-only scan:** read the btree, skip the heap, if the visibility map says the page is all-visible.
@@ -266,16 +277,12 @@ Vacuum quality decides whether this optimization works.
 
 Other access methods:
 
-- **BRIN** — tiny.
-  Stores min/max per range of pages.
-  Good for append-mostly time columns physically in order.
-  Bad if values are random on disk.
-- **GIN** — inverted.
-  Arrays, JSONB, FTS.
-- **GiST** — generalized tree.
-  Geometry, ranges.
-- **Hash** — equality.
-  Rare as a user-created default.
+| Access method | What it stores                          | Good for                                                                     |
+| ------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
+| **BRIN**      | Min/max per range of pages (tiny index) | Append-mostly columns physically in order; poor if values are random on disk |
+| **GIN**       | Inverted index                          | Arrays, JSONB, full-text search                                              |
+| **GiST**      | Generalized tree                        | Geometry, ranges                                                             |
+| **Hash**      | Equality only                           | Rare as a user-created index                                                 |
 
 **Elsewhere:** same menu with different names (MySQL covering index, SQL Server columnstore, ES inverted index).
 The Postgres twist is **heap + ctid + visibility map**.
@@ -284,7 +291,7 @@ The Postgres twist is **heap + ctid + visibility map**.
 
 Postgres is **one process per connection** (plus a postmaster and helpers).
 
-Helpers include checkpointer, WAL writer, autovacuum workers, stats collector / cumulative stats.
+Helpers include checkpointer, WAL writer, autovacuum workers, and the stats collector / cumulative stats.
 
 A connection is a real OS process.
 `work_mem` is per sort/hash, per node, per backend.
@@ -295,18 +302,18 @@ Connection pooling (PgBouncer, ProxySQL) exists because processes and threads ar
 The internals lesson: **the execution unit has a memory budget**.
 Design pools around that, not around "max clients on the slide."
 
-## Query Optimizer
+## Query optimizer
 
 Path of a statement:
 
-1. **Parse** — SQL to a tree
-2. **Rewrite** — views, rules, RLS
-3. **Plan** — pick an access path
-4. **Execute** — pull tuples through nodes (Volcano-style iterator)
+1. **Parse**: SQL to a tree.
+2. **Rewrite**: Views, rules, RLS.
+3. **Plan**: Pick an access path.
+4. **Execute**: Pull tuples through nodes (Volcano-style iterator).
 
 The planner is **cost-based**.
-It estimates rows using **statistics** (`ANALYZE`: histograms, most-common values, null frac).
-It assigns a cost to seq scan, index scan, bitmap scan, nested loop, hash join, merge join.
+It estimates rows using **statistics** (`ANALYZE`: histograms, most-common values, null fraction).
+It assigns a cost to seq scan, index scan, bitmap scan, nested loop, hash join, and merge join.
 It picks a cheap tree.
 
 ```plaintext
@@ -322,63 +329,54 @@ If stats are stale, the estimate is wrong, and you get a nested loop over millio
 `EXPLAIN ANALYZE` runs it and shows **actual** rows vs estimate.
 
 `work_mem` bounds in-memory sort and hash.
-Spill to disk if the node is bigger.
+It spills to disk if the node is bigger.
 
 **Elsewhere:** this is the standard SQL optimizer story (System R, Selinger).
-Oracle, SQL Server, MySQL 8, SQLite all estimate and search a plan space.
+Oracle, SQL Server, MySQL 8, and SQLite all estimate and search a plan space.
 The transferable skill is **read the plan**, not memorize `enable_seqscan`.
 
-## Transactions, Locks, and WAL Together
+## Transactions, locks, and WAL together
 
 A `COMMIT`:
 
-1. Transaction status → committed (in WAL, then `pg_xact`)
-2. WAL flushed
-3. Client unblocked
-4. Tuples already in the heap with that `xmin` become visible to new snapshots
+1. Transaction status → committed (in WAL, then `pg_xact`).
+2. WAL flushed.
+3. Client unblocked.
+4. Tuples already in the heap with that `xmin` become visible to new snapshots.
 
 Row locks (`FOR UPDATE`) live in the tuple (`xmax` / infomask) and in a lock table for waiting.
-MVCC visibility is not the same as exclusive lock.
+MVCC visibility is not the same as an exclusive lock.
 You can read a row another transaction is updating (you see the old version).
 You cannot take `FOR UPDATE` on it until they commit or abort.
 
 **Elsewhere:** lock vs version is the pessimistic vs MVCC split.
 See [concurrency control](../fundamentals/25-database-concurrency-control.md).
 
-## Pattern Catalog
+## Pattern catalog
 
-| Layer | Postgres choice | Same idea elsewhere |
-| ------- | ----------------- | --------------------- |
-| IO unit | 8KB slotted page | InnoDB 16KB pages, slotted records |
-| Table | Unordered heap + `ctid` | Clustered PK (InnoDB), LSM SST (RocksDB) |
-| Cache | `shared_buffers` + OS cache | Buffer pool, sometimes O_DIRECT |
-| Durability | WAL, full-page writes, checkpoint | Redo log, group commit |
-| MVCC | Heap tuple versions + snapshot | Undo log versions, LSM old keys |
-| Reclaim | VACUUM, freeze, visibility map | Purge, compaction |
-| Lookup | B+tree → `ctid` | B+tree → PK → row, LSM + bloom |
-| SQL | Cost-based planner + `EXPLAIN` | Every serious SQL engine |
+| Layer      | Postgres choice                   | Same idea elsewhere                      |
+| ---------- | --------------------------------- | ---------------------------------------- |
+| IO unit    | 8KB slotted page                  | InnoDB 16KB pages, slotted records       |
+| Table      | Unordered heap + `ctid`           | Clustered PK (InnoDB), LSM SST (RocksDB) |
+| Cache      | `shared_buffers` + OS cache       | Buffer pool, sometimes O_DIRECT          |
+| Durability | WAL, full-page writes, checkpoint | Redo log, group commit                   |
+| MVCC       | Heap tuple versions + snapshot    | Undo log versions, LSM old keys          |
+| Reclaim    | VACUUM, freeze, visibility map    | Purge, compaction                        |
+| Lookup     | B+tree → `ctid`                   | B+tree → PK → row, LSM + bloom           |
+| SQL        | Cost-based planner + `EXPLAIN`    | Every serious SQL engine                 |
 
-## What This Case Study Is Not
+## What this case study is not
 
 - Not a warehouse column store (no default vectorized execution like DuckDB/Parquet engines).
 - Not an LSM-first ingest path (see Cassandra / RocksDB).
 - Not automatically clustered on PK (see InnoDB).
-- Not a distributed SQL planner (see Spanner, Cockroach).
-  Extensions and forks exist.
-  Vanilla Postgres is one node plus replicas.
+- Not a distributed SQL planner (see Spanner, Cockroach). Extensions and forks exist, but vanilla Postgres is one node plus replicas.
 
-## Interview Talking Points
+## Interview talking points
 
-- Pages are slotted.
-  Row id is `(block, offset)`.
-- Postgres heap is **not** PK order.
-  Indexes point at `ctid`.
-  Contrast with InnoDB clustering.
-- MVCC = extra tuple versions on the heap.
-  Readers do not block writers.
-  VACUUM is mandatory.
-- WAL is the durability and replication stream.
-  Data files lag the log.
-- The optimizer is cost + stats.
-  `EXPLAIN ANALYZE` is how you debug, not guesses about indexes.
+- Pages are slotted. Row id is `(block, offset)`.
+- Postgres heap is **not** PK order. Indexes point at `ctid`. Contrast with InnoDB clustering.
+- MVCC = extra tuple versions on the heap. Readers do not block writers. VACUUM is mandatory.
+- WAL is the durability and replication stream. Data files lag the log.
+- The optimizer is cost + stats. `EXPLAIN ANALYZE` is how you debug, not guesses about indexes.
 - Process-per-connection and `work_mem` explain why pooling exists.

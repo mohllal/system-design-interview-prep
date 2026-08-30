@@ -1,4 +1,21 @@
-# Peer-to-Peer (P2P) Networks
+---
+title: "Peer-to-peer (P2P) networks"
+concepts:
+  - p2p-architectures
+  - distributed-hash-tables
+  - gossip-protocol
+  - sybil-attacks
+  - eclipse-attacks
+  - structured-overlays
+  - churn-handling
+  - content-addressing
+related:
+  - fundamentals/16-hashing.md
+  - fundamentals/27-cap-and-pacelc-theorems.md
+  - fundamentals/29-consensus.md
+---
+
+# Peer-to-peer (P2P) networks
 
 In P2P networks, nodes act as both clients and servers. There is no fixed central authority; peers share resources directly.
 
@@ -11,7 +28,7 @@ This model powers file sharing, decentralized storage, blockchain networks, and 
 - **Self-organization**: Network adapts as nodes join and leave
 - **Fault tolerance**: Survives individual node failures
 
-## Why Use P2P
+## Why use P2P?
 
 - Distribute bandwidth/storage load across participants
 - Avoid central bottlenecks for large file distribution
@@ -20,7 +37,7 @@ This model powers file sharing, decentralized storage, blockchain networks, and 
 
 Trade-off: coordination, security, and consistency become harder than in client-server systems.
 
-## P2P Architectures
+## P2P architectures
 
 ```mermaid
 graph TD
@@ -36,9 +53,14 @@ graph TD
 
 All peers are equal; no dedicated coordinator.
 
-- ✅ High resilience and decentralization
-- ❌ Hard peer discovery and bootstrapping
-- ❌ Unpredictable routing/search cost
+Pros:
+
+- High resilience and decentralization
+
+Cons:
+
+- Hard peer discovery and bootstrapping
+- Unpredictable routing/search cost
 
 Examples: early file-sharing networks, blockchain full nodes.
 
@@ -46,23 +68,33 @@ Examples: early file-sharing networks, blockchain full nodes.
 
 Uses super peers (or trackers) to help with discovery/routing while data transfer stays peer-to-peer.
 
-- ✅ Easier discovery and better performance
-- ❌ Super peers become partial bottlenecks
-- ❌ Less fully decentralized than pure P2P
+Pros:
+
+- Easier discovery and better performance
+
+Cons:
+
+- Super peers become partial bottlenecks
+- Less fully decentralized than pure P2P
 
 Examples: historical Skype architecture, tracker-assisted BitTorrent.
 
-### Structured Overlay (DHT-based)
+### Structured overlay (DHT-based)
 
 Builds a logical routing layer (often a ring/tree) on top of the physical network.
 
-- ✅ Predictable lookup cost (typically `O(log N)`)
-- ✅ Scales to very large networks
-- ❌ More complex maintenance during churn (frequent joins/leaves)
+Pros:
+
+- Predictable lookup cost (typically `O(log N)`)
+- Scales to very large networks
+
+Cons:
+
+- More complex maintenance during churn (frequent joins/leaves)
 
 Examples: BitTorrent DHT, Kademlia, Chord.
 
-## Distributed Hash Tables (DHT)
+## Distributed hash tables (DHT)
 
 DHTs map keys to responsible nodes so peers can find data without central indexes.
 
@@ -80,7 +112,7 @@ graph LR
 - **GET(key)**: Lookup responsible node and fetch value
 - **JOIN/LEAVE**: Rebalance key ownership as membership changes
 
-### Common DHT Designs
+### Common DHT designs
 
 **Chord**
 
@@ -98,7 +130,7 @@ graph LR
 
 In interviews, Kademlia is the most common practical reference.
 
-## Gossip Protocol
+## Gossip protocol
 
 Gossip spreads information by having each node periodically share updates with random peers.
 
@@ -129,14 +161,14 @@ sequenceDiagram
 
 Used in Cassandra, Consul, Dynamo-style systems, and failure detection.
 
-## Typical Use Cases
+## Typical use cases
 
 - Large file distribution (BitTorrent-style swarms)
 - Decentralized content networks (IPFS-like designs)
 - Blockchain transaction/block propagation
 - Cluster membership and failure detection via gossip
 
-## Security Challenges
+## Security challenges
 
 - **Sybil attacks**: Attacker creates many fake nodes
 - **Eclipse attacks**: Isolate a node with malicious neighbors
@@ -145,17 +177,17 @@ Used in Cassandra, Consul, Dynamo-style systems, and failure detection.
 
 Mitigations include reputation systems, proof-of-work/stake, signed metadata, and redundant source verification.
 
-## P2P vs Client-Server
+## P2P vs client-server
 
 | Dimension      | P2P               | Client-Server            |
-|----------------|-------------------|--------------------------|
+| -------------- | ----------------- | ------------------------ |
 | Control        | Decentralized     | Centralized              |
 | Discovery      | Harder            | Simple (DNS/LB)          |
 | Consistency    | Eventual/local    | Easier strong guarantees |
 | Scale-out cost | Shared by peers   | Paid infra               |
 | Security model | Trust-by-protocol | Trust provider boundary  |
 
-## Design Guidelines
+## Design guidelines
 
 - Define bootstrap strategy (seed nodes/trackers/DHT join path)
 - Plan for churn: nodes fail and rejoin constantly
@@ -163,7 +195,7 @@ Mitigations include reputation systems, proof-of-work/stake, signed metadata, an
 - Bound fan-out and gossip frequency to control bandwidth
 - Prefer structured overlays when predictable lookup matters
 
-## Interview Talking Points
+## Interview talking points
 
 - Explain pure vs hybrid vs DHT-based P2P clearly.
 - Use DHT as "distributed index" with `O(log N)` routing.
@@ -171,7 +203,7 @@ Mitigations include reputation systems, proof-of-work/stake, signed metadata, an
 - Call out Sybil/eclipse risks and integrity checks.
 - Position P2P as bandwidth/resilience trade-off against operational simplicity.
 
-## Reference Materials
+## Reference materials
 
 - [Chord: A Scalable Peer-to-peer Lookup Service](https://pdos.csail.mit.edu/papers/chord:sigcomm01/chord_sigcomm.pdf)
 - [Kademlia: A Peer-to-peer Information System](https://pdos.csail.mit.edu/~petar/papers/maymounkov-kademlia-lncs.pdf)

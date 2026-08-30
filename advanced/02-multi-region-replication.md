@@ -1,4 +1,25 @@
-# Multi-Region Replication
+---
+title: "Multi-region replication"
+concepts:
+  - active-passive-replication
+  - active-active-replication
+  - synchronous-replication
+  - asynchronous-replication
+  - conflict-resolution
+  - crdts
+  - failover
+  - rpo-and-rto
+related:
+  - fundamentals/23-database-replication.md
+  - fundamentals/27-cap-and-pacelc-theorems.md
+  - fundamentals/28-leader-election.md
+  - fundamentals/29-consensus.md
+  - fundamentals/13-load-balancing.md
+  - fundamentals/08-availability.md
+  - fundamentals/09-reliability.md
+---
+
+# Multi-region replication
 
 Multi-region replication copies and serves data across geographically separated regions.
 
@@ -11,7 +32,7 @@ It extends [database replication](../fundamentals/23-database-replication.md) wi
 - **Disaster recovery**: Recover from large-scale failures
 - **Data residency/compliance**: Keep data in required jurisdictions
 
-## Why Multi-Region Is Hard
+## Why multi-region is hard
 
 ```mermaid
 graph TB
@@ -43,42 +64,57 @@ Additional challenges:
 - Replication lag and stale reads
 - Failover complexity and split-brain risk
 
-## Deployment Patterns
+## Deployment patterns
 
-### Active-Passive (Primary + DR)
+### Active-passive (primary + DR)
 
 One primary region accepts writes; other regions are standby/read-only.
 
-- ✅ Simpler consistency story
-- ✅ Easier conflict handling
-- ❌ Standby region may be underutilized
-- ❌ Failover time affects RTO
+Pros:
+
+- Simpler consistency story
+- Easier conflict handling
+
+Cons:
+
+- Standby region may be underutilized
+- Failover time affects RTO
 
 Use when strong write consistency and simpler operations matter more than write locality.
 
-### Active-Passive with Global Read Replicas
+### Active-passive with global read replicas
 
 Primary handles writes; replicas serve read traffic locally.
 
-- ✅ Better read latency globally
-- ❌ Reads may be stale during lag
-- ❌ Promote/replica role changes need runbooks
+Pros:
+
+- Better read latency globally
+
+Cons:
+
+- Reads may be stale during lag
+- Promote/replica role changes need runbooks
 
 Common default for global SaaS with read-heavy workloads.
 
-### Active-Active (Multi-Master)
+### Active-active (multi-master)
 
 Multiple regions accept writes.
 
-- ✅ Best write locality and regional availability
-- ❌ Conflict resolution required
-- ❌ Harder testing and observability
+Pros:
 
-Use only when business needs local writes and team can handle merge semantics.
+- Best write locality and regional availability
 
-## Sync vs Async Across Regions
+Cons:
 
-### Synchronous Cross-Region Replication
+- Conflict resolution required
+- Harder testing and observability
+
+Use only when the business needs local writes and the team can handle merge semantics.
+
+## Sync vs async across regions
+
+### Synchronous cross-region replication
 
 Primary waits for remote acknowledgment before commit.
 
@@ -94,13 +130,18 @@ sequenceDiagram
     P-->>C: Commit confirmed
 ```
 
-- ✅ Stronger durability across regions
-- ❌ Write latency tied to slowest region
-- ❌ Remote outage can block writes
+Pros:
+
+- Stronger durability across regions
+
+Cons:
+
+- Write latency tied to slowest region
+- Remote outage can block writes
 
 Best for small, critical write sets (metadata, financial invariants), not all app data.
 
-### Asynchronous Cross-Region Replication
+### Asynchronous cross-region replication
 
 Primary commits locally, then replicates in background.
 
@@ -116,26 +157,31 @@ sequenceDiagram
     R-->>P: ACK later
 ```
 
-- ✅ Low write latency
-- ✅ Primary remains writable during transient link issues
-- ❌ Possible data loss window (RPO > 0)
-- ❌ Temporary inconsistency across regions
+Pros:
 
-Most global systems use async for bulk application data.
+- Low write latency
+- Primary remains writable during transient link issues
 
-### Semi-Sync Compromise
+Cons:
+
+- Possible data loss window (RPO > 0)
+- Temporary inconsistency across regions
+
+Most global systems use async replication for bulk application data.
+
+### Semi-sync compromise
 
 Require acknowledgment from at least one additional region/site before commit.
 
 - Better durability than pure async
 - Lower latency than full multi-region sync
 
-## Consistency Models
+## Consistency models
 
 Multi-region systems usually combine models by workload.
 
 | Model            | User experience         | Typical use                       |
-|------------------|-------------------------|-----------------------------------|
+| ---------------- | ----------------------- | --------------------------------- |
 | Strong (global)  | Always latest write     | Control metadata, inventory locks |
 | Eventual         | Converges over time     | Profiles, feeds, analytics        |
 | Read-your-writes | User sees own updates   | Account settings after save       |
@@ -143,7 +189,7 @@ Multi-region systems usually combine models by workload.
 
 Important interview point: "strong consistency globally" and "low-latency writes everywhere" rarely coexist at scale.
 
-## Conflict Resolution (Active-Active)
+## Conflict resolution (active-active)
 
 When two regions write the same key concurrently, replicas diverge.
 
@@ -158,11 +204,11 @@ Common strategies:
 - **CRDTs**: Data structures designed for commutative merges
   - Good for counters, sets, collaborative text in specific domains
 
-Design rule: push conflict policy to the business layer when possible; do not rely on DB defaults alone.
+Design rule: push conflict policy to the business layer when possible; do not rely on database defaults alone.
 
-## Network Partitions and Split-Brain
+## Network partitions and split-brain
 
-During partition, isolated regions may both think they are writable.
+During a partition, isolated regions may both think they are writable.
 
 ```mermaid
 graph TB
@@ -189,11 +235,11 @@ Mitigations:
 - Fencing tokens to prevent stale primary writes after promotion
 - Idempotent writes and version checks on all mutations
 
-## Traffic Routing
+## Traffic routing
 
 How users reach the right region:
 
-- **Geo-DNS / Geo routing**: Route by client location
+- **Geo-DNS / geo routing**: Route by client location
 - **Anycast**: Same IP announced in multiple regions
 - **Global load balancer**: Health-aware regional steering
 - **Sticky sessions**: Keep user on one region when stateful
@@ -216,7 +262,7 @@ Examples:
 
 State these explicitly in design interviews.
 
-## Failover Strategies
+## Failover strategies
 
 1. Detect regional failure (health checks, error budget burn, manual incident)
 2. Stop routing traffic to failed region
@@ -230,7 +276,7 @@ Runbooks should include:
 - How to verify no stale writer remains active
 - How to handle in-flight transactions
 
-## Performance Optimization
+## Performance optimization
 
 - Keep strongly consistent writes on a small coordination path
 - Use regional caches for read-heavy data
@@ -239,7 +285,7 @@ Runbooks should include:
 - Monitor replication lag per region (p50/p95/p99)
 - Define lag-based read routing rules (serve local vs redirect)
 
-## Design Guidelines
+## Design guidelines
 
 - Start active-passive unless active-active is a clear requirement
 - Separate critical metadata (strong consistency) from bulk user data (eventual)
@@ -248,15 +294,15 @@ Runbooks should include:
 - Test partition and regional failure scenarios regularly (game days)
 - Document conflict behavior per entity type
 
-## Interview Talking Points
+## Interview talking points
 
 - Clarify whether the prompt needs global writes or mostly global reads.
 - Explain sync vs async trade-offs with latency and RPO numbers.
 - For active-active, always discuss conflict resolution strategy.
 - Mention split-brain prevention (quorum, fencing, promotion workflow).
-- Tie routing + replication + consistency into one coherent story.
+- Tie routing, replication, and consistency into one coherent story.
 
-## Reference Materials
+## Reference materials
 
 - [Dynamo: Amazon's Highly Available Key-value Store](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
 - [Google Spanner: TrueTime and External Consistency](https://research.google/pubs/pub39966/)

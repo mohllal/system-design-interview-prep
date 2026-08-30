@@ -24,14 +24,14 @@ In-depth topics that build on the [fundamentals](../fundamentals/README.md). The
 
 ## Contents
 
-| Topic                                                        | Key Concepts                                                       |
-| ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| [OAuth 2.0](./01-oauth2.md)                                  | Authorization flows, PKCE, tokens, scopes, security                |
-| [Multi-Region Replication](./02-multi-region-replication.md) | Global deployment, replication topologies, consistency             |
-| [MapReduce](./03-mapreduce.md)                               | Distributed batch processing, map/shuffle/reduce                   |
-| [Peer-to-Peer Networks](./04-peer-to-peer-networks.md)       | Decentralized architectures, DHT, NAT traversal                    |
-| [Kafka Architecture](./05-kafka-architecture.md)             | Distributed log, partitioning, ISR, consumers as a case study      |
-| [PostgreSQL Internals](./06-postgresql-internals.md)         | Pages, heap, MVCC, WAL, planner as a database internals case study |
+| Topic                                                        | Key Concepts                                                                |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| [OAuth 2.0](./01-oauth2.md)                                  | Authorization code flow with PKCE, token validation, scopes, OpenID Connect |
+| [Multi-Region Replication](./02-multi-region-replication.md) | Active-active vs active-passive, RPO/RTO, geo-partitioning, split-brain     |
+| [MapReduce](./03-mapreduce.md)                               | Map/shuffle/reduce, combiners, data locality, fault tolerance, data skew    |
+| [Peer-to-Peer Networks](./04-peer-to-peer-networks.md)       | DHTs, Kademlia routing, gossip protocol, churn handling, NAT traversal      |
+| [Kafka Architecture](./05-kafka-architecture.md)             | Distributed log, ISR, leader-epoch fencing, cross-cluster replication       |
+| [PostgreSQL Internals](./06-postgresql-internals.md)         | Heap storage, MVCC, write-ahead log, buffer cache, query planner            |
 
 ---
 

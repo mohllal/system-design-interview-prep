@@ -1,43 +1,10 @@
 # Relational Databases
 
-Relational databases organize data in structured tables with rows and columns, using mathematical relations to link data across tables.
+A relational database stores data in **tables**.
 
-```mermaid
-erDiagram
-    CUSTOMER ||--o{ ORDER : places
-    ORDER ||--|{ ORDER_ITEM : contains
-    PRODUCT ||--o{ ORDER_ITEM : included_in
-    
-    CUSTOMER {
-        int customer_id PK
-        string name
-        string email
-        date created_at
-    }
-    
-    ORDER {
-        int order_id PK
-        int customer_id FK
-        decimal total_amount
-        date order_date
-    }
-    
-    PRODUCT {
-        int product_id PK
-        string name
-        decimal price
-        int stock_quantity
-    }
-    
-    ORDER_ITEM {
-        int order_id FK
-        int product_id FK
-        int quantity
-        decimal unit_price
-    }
-```
+Each table has a declared schema: named columns, types, and constraints.
 
-**Core Components:**
+Core Components:
 
 - **Tables**: Structured data storage representing entities (Customers, Orders)
 - **Rows**: Individual records containing specific data instances
@@ -46,11 +13,50 @@ erDiagram
 - **Foreign Keys**: References establishing relationships between tables
 - **Indexes**: Data structures improving query performance
 
+The engine can join tables, enforce constraints, and run **transactions** so several writes succeed or fail together.
+
+## When This Is the Right Tool
+
+Use a relational database when:
+
+- You have **entities and relationships** (customer, order, line item) that you query in more than one shape
+- You need **constraints** the app might forget (unique email, FK, CHECK)
+- Several rows must change as **one transaction** (payment + ledger + outbox row)
+- Ad-hoc SQL and a planner matter more than a single primary-key lookup
+
+It is a poor default when:
+
+- The working set or write QPS no longer fits one primary
+- The document *is* the API and you almost never join (a document store may match the access path)
+- You only need cache semantics (Redis), graph walks, or append-only metrics
+
+## Tables, Keys, and Joins
+
+```plaintext
+customers (id PK)
+    │
+    │ 1:N
+    ▼
+orders (id PK, customer_id FK)
+    │
+    │ 1:N
+    ▼
+order_items (order_id FK, product_id FK)
+```
+
+- **Primary key**: stable identity of a row
+- **Foreign key**: a column that must point at an existing PK (or NULL)
+- **Join**: the engine matches keys.
+
+Normalize so each fact lives in one place and join at read time when the question needs several facts.
+
+If every screen is "user plus their last 20 posts," you will denormalize or cache. That is an access-path choice, not a reason to abandon the relational model for the system of record.
+
 ## SQL (Structured Query Language)
 
 SQL provides a standardized interface for relational database operations, supporting complex queries, transactions, and data integrity constraints.
 
-**SQL Operation Categories**:
+SQL operations categories:
 
 - Data Query Language (DQL): `SELECT`
 - Data Manipulation Language (DML): `INSERT`, `UPDATE`, `DELETE`
@@ -58,24 +64,15 @@ SQL provides a standardized interface for relational database operations, suppor
 - Data Control Language (DCL): `GRANT`, `REVOKE`
 - Transaction Control Language (TCL): `COMMIT`, `ROLLBACK`
 
-**Key SQL Capabilities:**
+## Transactions and ACID
 
-- **Complex Joins**: Combine data from multiple tables
-- **Aggregations**: GROUP BY, SUM, COUNT, AVG functions
-- **Subqueries**: Nested queries for complex logic
-- **Window Functions**: Advanced analytical operations
-- **Common Table Expressions (CTEs)**: Temporary result sets
-- **Stored Procedures**: Reusable business logic
-
-## ACID Properties
-
-ACID properties guarantee reliable transaction processing in relational databases, ensuring data integrity even under concurrent access and system failures.
+A **transaction** is a batch of reads and writes that the database treats as one unit.
 
 ### Atomicity
 
-**Definition**: All operations in a transaction succeed or all fail together.
+All of the statements commit, or none do.
 
-**Example**: Bank transfer between accounts
+Example: A transfer that debits A and credits B cannot leave only the debit applied after a crash.
 
 ```sql
 BEGIN TRANSACTION;
@@ -84,24 +81,17 @@ UPDATE accounts SET balance = balance + 100 WHERE id = 2;
 COMMIT; -- Both updates succeed, or both rollback
 ```
 
-**Implementation**:
-
-- Transaction logs track all operations
-- Rollback mechanisms undo partial changes
-- Two-phase commit for distributed transactions
+The database engine uses a log plus rollback (or undo) to make that true.
 
 ### Consistency
 
-**Definition**: Database transitions from one valid state to another, maintaining all integrity constraints.
+The database only commits states that pass **declared** constraints:
 
-**Constraint Types**:
+- Entity integrity: PK unique and not null
+- Referential integrity: FK targets exist
+- Domain integrity: CHECK / NOT NULL / unique
 
-- **Entity Integrity**: Primary keys must be unique and non-null
-- **Referential Integrity**: Foreign keys must reference existing primary keys
-- **Domain Integrity**: Column values must satisfy defined data types and constraints
-- **User-Defined Constraints**: Business rules enforced at database level
-
-**Example**: Order total must equal sum of line items
+Example: "Order total equals the sum of lines" is consistency only if you actually declared it (or enforced it in the same transaction in the app).
 
 ```sql
 CHECK (total_amount = (
@@ -113,158 +103,59 @@ CHECK (total_amount = (
 
 ### Isolation
 
-**Definition**: Concurrent transactions appear to execute independently without interfering with each other.
+Concurrent transactions should not trample each other.
 
-**Isolation Levels** (ordered by strength):
+How much they can see of each other is the **isolation level**.
 
-| Level                | Dirty Read | Non-Repeatable Read | Phantom Read | Performance |
-|----------------------|------------|---------------------|--------------|-------------|
-| **Read Uncommitted** | ❌ Yes      | ❌ Yes               | ❌ Yes        | ⚡ Highest   |
-| **Read Committed**   | ✅ No       | ❌ Yes               | ❌ Yes        | ⚡ High      |
-| **Repeatable Read**  | ✅ No       | ✅ No                | ❌ Yes        | ⚡ Medium    |
-| **Serializable**     | ✅ No       | ✅ No                | ✅ No         | ⚡ Lowest    |
-
-**Anomaly Types**:
-
-- **Dirty Read**: Reading uncommitted changes from another transaction
-- **Non-Repeatable Read**: Same query returns different results within transaction
-- **Phantom Read**: New rows appear/disappear between identical queries
+That is a long topic of its own: dirty reads, phantoms, write skew, locks vs MVCC, see [Database Concurrency Control](./23-database-concurrency-control.md).
 
 ### Durability
 
-**Definition**: Committed changes persist permanently, surviving system crashes and power failures.
+After `COMMIT` returns, a crash must not lose the transaction.
 
-**Implementation Mechanisms**:
+The usual implementation is **write-ahead logging (WAL)**:
 
-- **Write-Ahead Logging (WAL)**: Log changes before applying to data files
-- **Checkpoints**: Periodic data file synchronization
-- **RAID and Replication**: Hardware-level data protection
-- **Backup and Recovery**: Regular backups for disaster recovery
+1. Write the change to the log and flush it (or group-commit several txns)
+2. Tell the client success
+3. Later, checkpoint those changes into data files
 
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant DB as Database
-    participant Log as WAL Log
-    participant Disk as Data Files
-    
-    App->>DB: BEGIN TRANSACTION
-    App->>DB: UPDATE data
-    DB->>Log: Write change to log
-    App->>DB: COMMIT
-    DB->>Log: Write commit record
-    DB->>App: Transaction complete
-    
-    Note over DB,Disk: Later (checkpoint)
-    DB->>Disk: Apply logged changes
+If you crash between 2 and 3, recovery replays the log.
+
+```plaintext
+client  →  COMMIT
+              │
+              ▼
+         WAL flush   ←  durability happens here
+              │
+              ▼
+         data files (checkpoint, later)
 ```
 
-## Concurrency Control
-
-Database systems use various mechanisms to manage concurrent access while maintaining data consistency and maximizing performance.
-
-### Pessimistic Locking
-
-**Philosophy**: Assume conflicts will occur, prevent them by locking resources upfront.
-
-**Lock Granularity Levels**:
-
-- **Row-Level**: Lock individual rows (fine-grained, higher concurrency)
-- **Page-Level**: Lock data pages containing multiple rows
-- **Table-Level**: Lock entire tables (coarse-grained, lower concurrency)
-- **Database-Level**: Lock entire database (rarely used)
-
-**Lock Types**:
-
-- **Shared (S) Lock**: Multiple readers allowed, no writers
-- **Exclusive (X) Lock**: Single writer, no readers or writers
-- **Intent Locks**: Indicate intention to acquire finer-grained locks
-
-**Trade-offs**:
-
-- ✅ Prevents lost updates and write-write conflicts
-- ✅ Simpler application logic
-- ❌ Reduced concurrency and potential deadlocks
-- ❌ Lock contention can hurt performance
-
-### Optimistic Locking
-
-**Philosophy**: Assume conflicts are rare, check for conflicts at commit time.
-
-```mermaid
-sequenceDiagram
-    participant T1 as Transaction 1
-    participant T2 as Transaction 2
-    participant DB as Database
-    
-    T1->>DB: Read data (version=1)
-    T2->>DB: Read data (version=1)
-    T1->>DB: Modify data
-    T2->>DB: Modify data
-    T1->>DB: Commit (check version=1)
-    DB->>T1: Success (version=2)
-    T2->>DB: Commit (check version=1)
-    DB->>T2: Conflict! Version changed
-    T2->>T2: Retry transaction
-```
-
-**Implementation Approaches**:
-
-- **Version Numbers**: Increment version on each update
-- **Timestamps**: Compare last-modified timestamps
-- **Checksums**: Compare data checksums for changes
-
-**Trade-offs**:
-
-- ✅ Higher concurrency, no blocking
-- ✅ No deadlock potential
-- ❌ Wasted work on conflicts
-- ❌ Complex retry logic required
-
-### Multi-Version Concurrency Control (MVCC)
-
-**Philosophy**: Maintain multiple versions of data to allow readers and writers to operate without blocking each other.
-
-**How it Works**:
-
-- Each row has multiple versions with timestamps
-- Readers see consistent snapshot without locks
-- Writers create new versions
-- Garbage collection removes old versions
-
-**Benefits**:
-
-- ✅ Readers never block writers
-- ✅ Writers never block readers
-- ✅ Consistent snapshots for transactions
-- ❌ Increased storage overhead
-- ❌ Vacuum/cleanup processes needed
-
-## Database Normalization
+## Normalization
 
 Normalization reduces data redundancy and improves data integrity by organizing tables according to normal forms.
 
 ### First Normal Form (1NF)
 
-**Requirements**:
+Requirements:
 
-- **Atomic Values**: Each column contains indivisible values
-- **Unique Rows**: No duplicate rows allowed
-- **Primary Key**: Each table must have a primary key
-- **No Repeating Groups**: No repeating columns (e.g., phone1, phone2, phone3)
+- Atomic Values: Each column contains indivisible values
+- Unique Rows: No duplicate rows allowed
+- Primary Key: Each table must have a primary key
+- No Repeating Groups: No repeating columns (e.g., phone1, phone2, phone3)
 
-**Before 1NF** (Violates atomicity and has repeating groups):
+Example: Violates atomicity and has repeating groups:
 
-```markdown
+```plaintext
 Customers:
 | CustomerID | Name     | Phones              | Orders           |
 |------------|----------|---------------------|------------------|
 | 1          | John Doe | 555-1234, 555-5678  | Laptop, Mouse    |
 ```
 
-**After 1NF**:
+After 1NF:
 
-```markdown
+```plaintext
 Customers:
 | CustomerID | Name     |
 |------------|----------|
@@ -285,11 +176,11 @@ Orders:
 
 ### Second Normal Form (2NF)
 
-**Requirement**: Must be in 1NF + all non-key attributes fully depend on the entire primary key (eliminates partial dependencies).
+Requirement: Must be in 1NF + all non-key attributes fully depend on the entire primary key (eliminates partial dependencies).
 
-**Problem Example** - Composite key (`PlayerID`, `ItemType`):
+Example: Composite key (`PlayerID`, `ItemType`):
 
-```markdown
+```plaintext
 PlayerItems:
 | PlayerID | ItemType | ItemQuantity | PlayerRating |
 |----------|----------|--------------|--------------|
@@ -298,11 +189,11 @@ PlayerItems:
 | gilal9   | coins    | 20           | Advanced     |
 ```
 
-**Issue**: `PlayerRating` depends only on `PlayerID`, not the full key (`PlayerID`, `ItemType`).
+Issue: `PlayerRating` depends only on `PlayerID`, not the full key (`PlayerID`, `ItemType`).
 
-**After 2NF Normalization**:
+After 2NF:
 
-```markdown
+```plaintext
 PlayerItems:
 | PlayerID | ItemType | ItemQuantity |
 |----------|----------|--------------|
@@ -319,11 +210,11 @@ Players:
 
 ### Third Normal Form (3NF)
 
-**Requirement**: Must be in 2NF + no transitive dependencies (non-key attributes depend only on primary key, not on other non-key attributes).
+Requirement: Must be in 2NF + no transitive dependencies (non-key attributes depend only on primary key, not on other non-key attributes).
 
-**Problem Example**:
+Example:
 
-```markdown
+```plaintext
 Players:
 | PlayerID | PlayerRating | PlayerSkillLevel |
 |----------|--------------|------------------|
@@ -331,11 +222,11 @@ Players:
 | gilal9   | Advanced     | 9                |
 ```
 
-**Issue**: `PlayerRating` depends on `PlayerSkillLevel`, creating transitive dependency: PlayerID → PlayerSkillLevel → PlayerRating
+Issue: `PlayerRating` depends on `PlayerSkillLevel`, creating transitive dependency: PlayerID → PlayerSkillLevel → PlayerRating
 
-**After 3NF Normalization**:
+After 3NF:
 
-```markdown
+```plaintext
 Players:
 | PlayerID | PlayerSkillLevel |
 |----------|------------------|
@@ -350,27 +241,72 @@ RatingLevels:
 | 8-10       | Advanced     |
 ```
 
-### Normalization Trade-offs
+### Why You Still Denormalize
 
-| Aspect                | Normalized       | Denormalized                |
-|-----------------------|------------------|-----------------------------|
-| **Data Redundancy**   | ✅ Minimal        | ❌ High                      |
-| **Storage Space**     | ✅ Efficient      | ❌ More storage needed       |
-| **Update Anomalies**  | ✅ Prevented      | ❌ Risk of inconsistency     |
-| **Query Complexity**  | ❌ More joins     | ✅ Simpler queries           |
-| **Read Performance**  | ❌ Slower (joins) | ✅ Faster (fewer joins)      |
-| **Write Performance** | ✅ Faster         | ❌ Slower (multiple updates) |
+Joins cost CPU and IO. Read-heavy paths often keep a copy:
 
-**When to denormalize**:
+- `orders.customer_email` duplicated so the list page does not join
+- A summary table or materialized view for dashboards
+- A cache in Redis for the hot document
 
-- Read-heavy workloads with performance requirements
-- Data warehouse and analytical systems
-- Caching layers where consistency can be eventually consistent
+You then own **refresh**:
 
-## Reference Materials
+- Trigger (e.g. a database trigger)
+- App dual-write
+- Nightly job
 
-- [ACID Properties Explained](https://www.youtube.com/watch?v=GAe5oB742dw&ab_channel=ByteByteGo)
-- [How Transaction Isolation Provides Data Integrity in Database](https://newsletter.scalablethread.com/p/how-transaction-isolation-provides)
-- [Database Normalization Explained](https://www.youtube.com/watch?v=GFQaEYEc8_8&ab_channel=Decomplexify)
-- [Optimistic vs Pessimistic Locking](https://vladmihalcea.com/optimistic-vs-pessimistic-locking/)
-- [Database Indexing Strategies](https://use-the-index-luke.com/)
+In cost of:
+
+- Reads get faster
+- Writes get more places to update
+- Staleness becomes a product decision
+
+## How a Query Actually Runs
+
+SQL is declarative so the **planner** picks an access path.
+
+Typical choices:
+
+- Sequential scan of the heap
+- Index lookup or range scan, see [Indexes](./33-database-indexes.md)
+- Nested loop / hash / merge join
+- Sort and aggregate
+
+`EXPLAIN` (and `EXPLAIN ANALYZE`) is how you see that plan.
+"Add an index" without looking at the plan is guessing.
+
+On one well-indexed primary, most SQL optimization is:
+
+1. Index the columns you filter and join on
+2. Stop selecting columns you do not need
+3. Avoid exploding joins (`SELECT *` from 1:N twice)
+4. Keep transactions short
+
+## Constraints vs the Application
+
+Put invariants in the database if a missed check is expensive:
+
+- Unique email
+- FK so you cannot orphan line items
+- `CHECK (quantity > 0)`
+
+The app will have bugs. A constraint is a last line.
+
+Do not expect the database to enforce rules that need other services (inventory in a warehouse API) or external systems. Those stay in the app or in a saga.
+
+## Order of Moves
+
+1. Correct schema and constraints for the invariants
+2. Indexes for the real `WHERE` / `JOIN` / `ORDER BY` list
+3. Isolation level appropriate to the anomalies you cannot tolerate
+4. Replicas for failover and read offload
+5. Partition or shard when one primary cannot hold the writes or the data
+
+## Interview Talking Points
+
+- Relational means **tables, keys, joins, transactions**, not "we use SQL."
+- ACID: atomic commit, declared constraints, isolation, WAL durability.
+- Normalize to avoid update anomalies.
+  Denormalize a **named** read path and say how you refresh it.
+- Scale reads with replicas and scale writes with partitioning.
+  Do not start with "maybe Mongo."

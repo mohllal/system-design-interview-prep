@@ -1,284 +1,175 @@
 # Database Replication
 
-Database replication copies data across multiple servers to improve availability, performance, and disaster recovery.
+Replication keeps **copies of the same data** on more than one node.
 
-## Core Benefits
+What it buys is a durability choice, a failover candidate, extra read capacity with lag, and a place to hang backups, analytics, and CDC.
 
-**High Availability**
+In production each **shard** is usually its own replica set. This note is the replica set: how the log moves, who you wait for, who may write, and what happens when a node lies or dies.
 
-- System remains operational during server failures
-- Automatic failover to healthy replicas
-- Eliminates single points of failure
+## What You Are Choosing
 
-**Performance Scaling**
+Three knobs:
 
-- Distribute read workload across multiple servers
-- Reduce latency with geographically distributed replicas
-- Offload reporting and analytics to dedicated replicas
+1. How many copies must exist before the client gets an ack (RPO vs write latency)
+2. How many nodes may accept writes (conflicts vs write availability)
+3. What a replica read is allowed to return (lag vs load on the primary)
 
-**Disaster Recovery**
+If you cannot name those for a design, "we will add replicas" is not a design.
 
-- Geographic data distribution protects against site failures
-- Point-in-time recovery capabilities
-- Business continuity during major outages
+## How the Bytes Move
 
-**Cost Optimization**
+Most single-primary systems ship a **log of changes**, not "the database file" on a timer.
 
-- Separate analytical workloads from transactional systems
-- Optimize resource allocation per workload type
+- **Physical / WAL shipping** (Postgres streaming, MySQL binlog in row format as a close cousin): the replica replays the same bytes the primary wrote.
+- **Logical / row-level**: the replica applies row changes (or SQL). You can subscribe to a subset, cross versions more easily, and feed CDC is the app-level version of "durable log of facts".
 
-## Replication Methods
+Statement-based replication ("send the `UPDATE` text") breaks on non-deterministic SQL (`NOW()`, `RAND()`, triggers) and it is rare in production.
 
-The timing of data synchronization affects consistency guarantees and performance characteristics.
+If a replica disconnects, the primary must **retain** WAL until that replica consumes it (replication slots, binlog retention). A dead replica with a slot held open fills the primary disk and takes the cluster down. TTL the slot or drop the replica and do not assume infinite retention.
 
-```mermaid
-sequenceDiagram
-    participant A as Application
-    participant P as Primary DB
-    participant R1 as Replica 1
-    participant R2 as Replica 2
-    
-    Note over A,R2: Synchronous Replication
-    A->>P: Write Request
-    P->>R1: Replicate Data
-    P->>R2: Replicate Data
-    R1->>P: ACK
-    R2->>P: ACK
-    P->>A: Write Complete
-    
-    Note over A,R2: Asynchronous Replication  
-    A->>P: Write Request
-    P->>A: Write Complete (immediate)
-    P->>R1: Replicate Data (background)
-    P->>R2: Replicate Data (background)
+Useful variants of "a replica":
 
-    Note over A,R2: Semi-Synchronous Replication
-    A->>P: Write Request
-    P->>R1: Replicate Data
-    P->>R2: Replicate Data
-    R1->>P: ACK
-    P->>A: Write Complete
-    R2->>P: ACK
+- **Streaming hot standby**: can be promoted and often can serve reads.
+- **Delayed replica** (hours behind): recovery from `DROP TABLE` / bad deploy that already replicated everywhere else.
+- **Cascading replica**: primary → hub replica → many tails, so the primary is not fan-out bound.
+
+## Durability: Who You Wait For
+
+The product decision is when the **client** is told the write is done.
+
+```plaintext
+async          client ← ack          replica gets the bytes later
+                                     primary dies  →  lose the unshipped tail (RPO > 0)
+
+wait for one   client waits until ≥1 replica has flushed it
+                                     one extra copy, not "every replica in the AZ"
+
+sync to all    client waits for every replica
+                                     write latency = slowest replica; a dead replica stalls writes
 ```
 
-### Synchronous Replication
+Semi-sync ("wait for one") is the usual compromise: the ack is not local-only, and a single slow/far replica does not freeze the primary. Fully sync to all replicas is for a small, critical set of writes, not the whole OLTP path.
 
-**Process**: Primary waits for replica acknowledgment before confirming write
+Sync replication: if you wait for a replica that is partitioned away, you either stall writes (choose C) or ack without that copy (choose A, RPO > 0).
 
-- ✅ **Strong Consistency**: All replicas have identical data
-- ✅ **Zero Data Loss**: No risk of data loss during failures
-- ❌ **Higher Latency**: Slower writes due to network round-trips
-- ❌ **Availability Risk**: Single slow replica affects all writes
+## Who Accepts Writes
 
-**Use Cases**: Financial systems, critical transactional data
+### One primary
 
-### Asynchronous Replication
+Default option and it works as follow:
 
-**Process**: Primary confirms write immediately, replicates in background
+1. All writes go to one primary node
+2. Replicas pull or receive the log
+3. You get a single order of commits and no merge math.
 
-- ✅ **Low Latency**: Fast write operations
-- ✅ **High Availability**: Replica failures don't affect writes
-- ❌ **Eventual Consistency**: Temporary data inconsistencies possible
-- ❌ **Potential Data Loss**: Unreplicated data lost if primary fails
-
-**Use Cases**: Read-heavy applications, analytics, content distribution
-
-### Semi-Synchronous Replication
-
-**Process**: Wait for at least one replica acknowledgment before commit
-
-- ⚖️ **Balanced Approach**: Compromise between consistency and performance
-- ✅ **Reduced Data Loss**: At least one replica guaranteed to be current
-- ⚖️ **Moderate Latency**: Better than full synchronous, slower than async
-
-**Use Cases**: Applications requiring balance between performance and consistency
-
-## Replication Architectures
-
-Different architectural patterns provide varying trade-offs between consistency, availability, and complexity.
-
-### Master-Slave (Primary-Replica) Architecture
-
-Single primary handles writes, multiple replicas serve reads.
-
-```mermaid
-graph TD
-    A[Applications] --> B[Master Database<br/>Handles Writes]
-    B -->|Replication| C[Slave 1<br/>Read Only]
-    B -->|Replication| D[Slave 2<br/>Read Only] 
-    B -->|Replication| E[Slave 3<br/>Read Only]
-    
-    A -->|Read Queries| C
-    A -->|Read Queries| D
-    A -->|Read Queries| E
+```plaintext
+           writes
+             │
+             ▼
+          primary  ──────log────►  replica
+             ▲                         │
+             └──────── reads ──────────┘   (lag if you read the replica)
 ```
 
-**Characteristics**:
+Writes serialize here. Replicas scale **reads** and give you a promotion candidate but they do not scale writes.
 
-- Single source of truth for writes
-- Read scaling through multiple replicas
-- Simple consistency model
-- Automatic failover capabilities
+This is MySQL/Postgres streaming replication, MongoDB replica sets, Kafka's partition leader.
 
-**Benefits**:
+Clients must find the current primary after failover: a proxy (ProxySQL, PgBouncer with a pause), a VIP, or a driver that watches the replica set.
 
-- ✅ Simple to understand and implement
-- ✅ Strong write consistency
-- ✅ Read scalability
-- ✅ Clear data lineage
+### More than one primary
 
-**Challenges**:
+Two nodes (often two regions) both take writes so users are not shipped across an ocean for every `UPDATE`. Concurrent updates to the same row **conflict**.
 
-- ❌ Write bottleneck at master
-- ❌ Single point of failure for writes
-- ❌ Replication lag affects read consistency
-- ❌ Failover complexity
+Merge rules, in increasing honesty:
 
-**Examples**: MySQL replication, PostgreSQL streaming replication, MongoDB replica sets
+- **Last-write-wins**: last timestamp wins. Clock skew silently drops a write. Fine for "last profile save," bad for inventory.
+- **Version vectors / causality**: detect concurrent writes but you still need a rule or a human for the concurrent case.
+- **Application merge**: union of tags, max(`last_login`), "newest shipping address." you state it per entity.
+- **Conflict-Free Replicated Data Types (CRDTs)**: counters, sets, some text — types designed to commute. Not your order table.
 
-### Multi-Master Architecture
+Add-only logs (append events, never update in place) conflict less than "update the same row from two regions." That is why event logs and CRDT-ish counters show up in multi-primary designs.
 
-Multiple nodes accept both read and write operations.
+Use this when local writes are a product requirement and you can state the merge rule. Do not use it as "HA, so no primary." You traded a failover problem for a **conflict** problem.
 
-```mermaid
-graph TD
-    A[Applications] --> B[Master 1<br/>Read/Write]
-    A --> C[Master 2<br/>Read/Write]
-    A --> D[Master 3<br/>Read/Write]
-    
-    B <-->|Sync| C
-    B <-->|Sync| D
-    C <-->|Sync| D
+### Leaderless (quorum)
+
+The client (or coordinator) writes to several nodes and waits for **W** acks while reads wait for **R**.
+
+If `R + W > N`, a read quorum overlaps the last write quorum, so you can see the latest value *if you also pick the newest version among the responses*. Overlap alone is not enough — see [consensus](./27-consensus.md).
+
+```plaintext
+N = 3 replicas of the same key
+
+W = 2, R = 2     write hits 2, read hits 2 → they intersect
+W = 1, R = 1     write and read can miss each other → stale reads are allowed on purpose
 ```
 
-**Characteristics**:
+You bought write availability without a single leader. You paid for the repair path:
 
-- No single point of failure for writes
-- Geographic distribution of write capability
-- Complex conflict resolution required
-- Eventually consistent data model
+- **Read repair**: a read that sees mixed versions writes the newest back to the stale nodes.
+- **Hinted handoff**: a node that missed a write is told later ("the hint").
+- **Anti-entropy / repair jobs**: background Merkle-tree compares so silent drift does not last forever.
+- **Sloppy quorum**: during a partition you write to whoever is reachable, not the "home" replicas, then hand off. Availability up, more repair later.
 
-**Benefits**:
+The consistency story is a pair `(R, W)`, not "the database is strongly consistent." Cassandra / Dynamo-style. Odd `N` (3, 5) is about how many node failures you tolerate.
 
-- ✅ Write scalability and availability
-- ✅ Geographic write distribution
-- ✅ No single point of failure
-- ✅ Lower write latency (nearest master)
+Replica-set **elections** (MongoDB, etcd, Kafka KRaft) are a different quorum: majority to pick a **leader**, then that leader orders writes. Dynamo `R/W` is per-request agreement on a value. Do not mix them in one sentence.
 
-**Challenges**:
+## Failover Is the Hard Part
 
-- ❌ Complex conflict resolution
-- ❌ Eventual consistency model
-- ❌ Higher operational complexity
-- ❌ Potential write conflicts
+A replica existing is not failover. Failover is: decide the primary is gone, pick a successor that has the **needed log**, **stop the old primary from writing**, and point clients at the new one.
 
-**Examples**: MariaDB Galera, CouchDB
+Promote the replica that is **most caught up**, not a random one. An async replica promoted to primary **loses** whatever was not replicated — the RPO you already chose. Promoting a far-behind replica because it is the only one left is unclean leader election under another name.
 
-### Masterless (Leaderless) Replication
+After promotion, replicas that were ahead of the new primary on some fork must **rewind** or be rebuilt.
 
-All nodes are equal peers handling both reads and writes.
+## Reading from Replicas
 
-```mermaid
-graph TD
-    A[Applications] --> B[Node 1<br/>Read/Write]
-    A --> C[Node 2<br/>Read/Write]
-    A --> D[Node 3<br/>Read/Write]
-    A --> E[Node 4<br/>Read/Write]
-    
-    B <--> C
-    B <--> D
-    B <--> E
-    C <--> D
-    C <--> E
-    D <--> E
-```
+Replica lag is seconds **and** bytes (or LSN delta), not a boolean.
 
-**Characteristics**:
+- **Read-your-writes**: user saves a profile, next GET hits a replica 2s behind → they see the old row.
+   Fix: read primary after write, sticky to primary, or wait until that replica's apply LSN ≥ the write's LSN.
+- **Monotonic reads**: do not bounce a user between a caught-up replica and a stale one so time appears to go backwards.
+   Pin the session to one replica or to primary.
+- **Linearizable reads**: must see the latest committed write cluster-wide. That is primary, a sync replica, or a quorum read — not a random async replica.
 
-- No designated leader or coordinator
-- Quorum-based read/write operations
-- Built-in fault tolerance
-- Eventual consistency with tunable consistency levels
+Analytics, backups, and CDC are what replicas are *for* more often than "2× OLTP read QPS."
 
-**Benefits**:
+## Backups Are Not Replicas
 
-- ✅ Highly available (no single point of failure)
-- ✅ Linear scalability
-- ✅ Automatic failure handling
-- ✅ Tunable consistency levels
+A replica is live: the same `DROP`, ransomware, or schema bug replicates. Backups and PITR (WAL archive) are a **point in time** you can restore that is not following the primary.
 
-**Challenges**:
+CDC consumers (Kafka, Debezium) are replicas of the log in another system. They have the same lag and "what is committed" questions. Use [outbox](../architecture/07-transactional-outbox.md) when the app must not dual-write.
 
-- ❌ Complex consistency semantics
-- ❌ Read repair and anti-entropy processes
-- ❌ Quorum management overhead
-- ❌ Eventual consistency complexities
+## What Replication Does Not Do
 
-**Examples**: Apache Cassandra, Amazon DynamoDB, Riak
+- Fix a hot key. Copies of the same primary still serialize those writes.
+- Replace backups — see above.
+- Give you multi-region for free — 100–400ms sync is a product decision.
+- Remove the primary as a write bottleneck unless you change **who accepts writes**.
 
-## Architecture Comparison
+## Order of Moves
 
-| Architecture     | Write Scalability | Read Scalability | Consistency | Complexity | Fault Tolerance |
-|------------------|-------------------|------------------|-------------|------------|-----------------|
-| **Master-Slave** | Low               | High             | Strong      | Low        | Medium          |
-| **Multi-Master** | Medium            | High             | Eventual    | High       | High            |
-| **Masterless**   | High              | High             | Tunable     | Medium     | Very High       |
+1. One primary, streaming replicas, WAL retention/slots bounded
+2. State the ack policy (async / wait-for-one) as an RPO number, and put the waited-on replica in another AZ
+3. Replica reads only where lag is acceptable .. pin the rest to primary
+4. Delayed replica or PITR before you need to undo a replicated `DROP`
+5. Rehearse failover, including fencing and client routing, before you need it
+6. Second writable region or leaderless quorums only with an explicit conflict or `(R, W)` story
+7. Shard when the primary cannot take the writes — copies will not save you
 
-## Replication Patterns in Practice
+## Interview Talking Points
 
-### Conflict Resolution
-
-When multiple nodes can accept writes, conflicts are inevitable and must be resolved systematically.
-
-**Common Conflict Resolution Patterns**:
-
-| Pattern                                        | How it Works                          | Pros                 | Cons                 |
-|------------------------------------------------|---------------------------------------|----------------------|----------------------|
-| **Last Write Wins**                            | Latest timestamp wins                 | Simple to implement  | May lose data        |
-| **Vector Clocks**                              | Track causality across nodes          | Preserves causality  | Complex to implement |
-| **Application-Level**                          | App decides conflict resolution       | Business logic aware | Requires custom code |
-| **CRDT (Conflict-free Replicated Data Types)** | Mathematically commutative operations | Always converges     | Limited data types   |
-
-### Read and Write Quorums
-
-Masterless systems use quorum consensus to ensure consistency.
-
-```mermaid
-graph TD
-    subgraph Write Path
-        A[Write Request] --> B{Quorum Check}
-        B -->|≥ W nodes acknowledge| C[Write Successful]
-        B -->|< W nodes respond| D[Write Failed]
-    end
-
-    subgraph Read Path
-        E[Read Request] --> F{Quorum Check}
-        F -->|≥ R nodes respond| G[Read Successful]
-        F -->|< R nodes respond| H[Read Failed]
-    end
-
-    subgraph Consistency Condition
-        I[Rule: R + W > N]
-        I --> J[Guarantees Strong Consistency]
-    end
-```
-
-**Parameters**:
-
-- **N**: Total number of replicas
-- **W**: Write quorum (nodes that must acknowledge write)
-- **R**: Read quorum (nodes that must respond to read)
-
-**Tuning Examples**:
-
-- **R=1, W=N**: Fast reads, slow writes, high consistency
-- **R=N, W=1**: Fast writes, slow reads, high consistency  
-- **R=W=(N+1)/2**: Balanced performance and consistency
+- Replication is **copies**, partitioning is **split**. Replica set per shard.
+- Ack policy is **RPO vs write latency**. Async means you can lose the tail.
+- Single primary is the default .. extra primaries mean conflicts .. leaderless means `(R, W)` and repair. Election quorum ≠ Dynamo quorum.
+- Failover without **fencing** is split brain. Promote the most caught-up replica.
+- Replica reads need a **lag** sentence (read-your-writes), not "reads scale."
+- Slots/retention: a dead replica can fill the primary.
 
 ## Reference Materials
 
-- [What is Database Replication?](https://www.ibm.com/topics/data-replication)
-- [Database Replication Explained](https://www.youtube.com/watch?v=bI8Ry6GhMSE&ab_channel=Exponent)
-- [Master-Replica Replication](https://arpitbhayani.me/blogs/master-replica-replication)
-- [Multi-Master Replication](https://arpitbhayani.me/blogs/multi-master-replication/)
-- [Leaderless Replication](https://arpitbhayani.me/blogs/leaderless-replication)
+- [Master-replica replication](https://arpitbhayani.me/blogs/master-replica-replication)
+- [Multi-master replication](https://arpitbhayani.me/blogs/multi-master-replication/)
+- [Leaderless replication](https://arpitbhayani.me/blogs/leaderless-replication)

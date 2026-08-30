@@ -1,0 +1,19 @@
+#!/bin/sh
+# Lint staged Markdown files with markdownlint-cli before allowing a commit.
+staged_md=$(git diff --cached --name-only --diff-filter=ACM -- '*.md')
+
+if [ -z "$staged_md" ]; then
+  exit 0
+fi
+
+echo "Running markdownlint on staged Markdown files..."
+echo "$staged_md" | xargs npx --yes markdownlint-cli
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "markdownlint failed. Fix the reported issues (or run 'npx markdownlint-cli --fix <file>' where applicable) before committing."
+  exit 1
+fi
+
+exit 0

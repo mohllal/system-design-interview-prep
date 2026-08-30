@@ -10,6 +10,8 @@ concepts:
   - retry-backoff-and-jitter
   - fail-open-vs-fail-closed
 related:
+  - fundamentals/10-scalability.md
+  - fundamentals/12-proxies.md
   - fundamentals/13-load-balancing.md
   - fundamentals/14-resilience.md
   - fundamentals/34-cdn.md
@@ -19,7 +21,7 @@ related:
 
 Rate limiting caps how often a client can perform an action, so one user, IP, or integration cannot consume a disproportionate share of capacity.
 
-It is a fairness and protection tool, not a substitute for [load shedding](./14-resilience.md) when the system is already overloaded.
+It is a fairness and protection tool, not a substitute for [load shedding](./14-resilience.md) when the system is already overloaded. Both are part of what makes a [scalable system](./10-scalability.md) degrade gracefully at its ceiling instead of collapsing.
 
 ## Why rate limit
 
@@ -29,8 +31,7 @@ It is a fairness and protection tool, not a substitute for [load shedding](./14-
 - **Cost and quotas**: Enforce free vs paid tiers, and cap calls to expensive third parties
 - **Product rules**: Inventory grabs, invite spam, SMS/email send limits
 
-Rate limiting answers "is this *caller* allowed to do this *now*?" Load shedding answers "can *the system* take more work?"
-Use both: identity-based limits at the edge, and overload protection deeper in.
+Rate limiting answers "is this *caller* allowed to do this *now*?" Load shedding answers "can *the system* take more work?" Use both: identity-based limits at the edge, and overload protection deeper in.
 
 ## What you are bounding
 
@@ -60,14 +61,41 @@ Production systems stack keys: **global IP limit (abuse) + per-user limit (fairn
 
 ### Placement
 
-- **Edge / gateway**: Cheapest place to reject, as it sees all public traffic. Coarse (per IP, per key, per route).
-- **Service**: Enforces what the gateway cannot see (per-resource, after auth, after a cache hit).
-- **Outbound**: When *you* call Stripe, GitHub, or SMS, you need a limiter on the way out so retries do not ban the whole fleet.
-- **Client-side**: A local token bucket improves UX and cuts useless 429s. It is **not** enforcement, as malicious clients skip it.
+Limits are enforced at the same points in the request path described in [proxies](./12-proxies.md) — this is one of the cross-cutting concerns a front door exists to own.
+
+- **Edge / gateway**: The [reverse proxy](./12-proxies.md), Layer 7 [load balancer](./13-load-balancing.md), or [CDN](./34-cdn.md) edge. Cheapest place to reject, because it sees all public traffic and spends no backend capacity on a request that will fail. Necessarily coarse: per IP, per API key, per route.
+- **Service**: Enforces what the gateway cannot see — per-resource limits, anything that depends on the authenticated identity, or on what a cache hit would have returned.
+- **Outbound**: When *you* call Stripe, GitHub, or an SMS provider, you need a limiter on the way out so your own retries do not get the whole fleet banned.
+- **Client-side**: A local token bucket improves UX and avoids useless 429s. It is **not** enforcement, since a malicious client simply skips it.
+
+The layers stack rather than compete: coarse and cheap at the edge, precise and expensive close to the resource.
 
 ## Algorithms
 
-Pick an algorithm for the *shape* of traffic you want, then worry about distribution.
+Pick an algorithm for the *shape* of traffic you want to allow, then worry about how to distribute it.
+
+There are two families. **Window algorithms** (fixed, sliding log, sliding counter) count events inside a time window and ask "how many already?". **Bucket algorithms** (token, leaky) model a continuously refilling or draining reservoir and ask "is there room right now?". Windows are easier to reason about and to explain; buckets handle bursts more gracefully and are what most public APIs actually ship.
+
+### At a glance
+
+| Algorithm              | Accuracy | Memory  | Burst behaviour            | Typical use                 |
+| ---------------------- | -------- | ------- | -------------------------- | --------------------------- |
+| Fixed window           | Low      | Lowest  | Spike at the boundary      | Simple quotas               |
+| Sliding window log     | Highest  | Highest | Smooth                     | Strict limits, low volume   |
+| Sliding window counter | High     | Low     | Mostly smooth              | General-purpose HTTP APIs   |
+| Token bucket           | High     | Low     | Intentional, bounded burst | Public APIs                 |
+| Leaky bucket           | High     | Low     | Queued or dropped          | Smoothing a fragile backend |
+
+The worked examples below use Redis, because a shared store is what you need the moment there is more than one replica.
+
+> **Note — the Redis primitives used below:**
+> `INCR <key>` increments an integer and returns the new value; a missing key counts as 0, so the first increment returns 1.
+> `GET <key>` reads a value. `EXPIRE <key> <seconds>` sets a TTL, which is how counters clean themselves up.
+> `ZADD <key> <score> <member>` adds a member to a sorted set, `ZCARD <key>` counts its members, and
+> `ZREMRANGEBYSCORE <key> <min> <max>` removes members whose score falls in that range.
+>
+> Every multi-step sequence below must run as **one atomic unit** — a Lua script or a `MULTI` block — or two replicas can read the same count and both allow.
+> Only single-command `INCR` is safe on its own.
 
 ### Fixed window
 
@@ -135,9 +163,7 @@ t=12:01:05  key=rl:user:42:12:01     ← different key
             old rl:user:42:12:00 is not deleted by hand; TTL finishes it
 ```
 
-> **Note:**
-> `INCR <key>` increments an integer and returns the new value. A missing key is treated as 0, so the first increment returns 1.
-> `EXPIRE <key> <seconds>` sets a TTL. For a fixed window, TTL = window length (here 60s).
+Note that a single `INCR` is the whole decision here, which is why fixed window is the one algorithm that needs no script: the atomicity comes free.
 
 **Pros:**
 
@@ -160,18 +186,12 @@ In Redis that log is **one sorted set**, not one key per timestamp:
 - Key: `rl:user:42`
 - Score and member: the request timestamp (append a uuid to the member if two requests can share the same millisecond)
 
-On every request, in this order (one Lua script / pipeline so two replicas cannot both see `count=2`):
+On every request, in this order, as one atomic script (otherwise two replicas can both see `count = 2` and both allow):
 
 1. `ZREMRANGEBYSCORE rl:user:42 -inf <cutoff>` — remove members with score ≤ `now − 10` (aged-out requests)
-2. `ZCARD rl:user:42` — how many timestamps still in the window
-3. If `count ≥ 3` → **reject**, do not write
-4. If `count < 3` → `ZADD rl:user:42 <now> <now>` then `EXPIRE rl:user:42 10` → **allow** ... the TTL is a safety net so a quiet user does not leave the key forever.
-
-> **Note:**
-> The `ZREMRANGEBYSCORE` command removes all members with a score less than or equal to the given score. `ZREMRANGEBYSCORE <key> <minimum score> <maximum score>`
-> The `ZCARD` command returns the number of members in the sorted set. `ZCARD <key>`
-> The `ZADD` command adds a member to the sorted set with the given score. `ZADD <key> <score> <member>`
-> The `EXPIRE` command sets the expiration time for the key in seconds. `EXPIRE <key> <seconds>`
+2. `ZCARD rl:user:42` — how many timestamps are still in the window
+3. If `count ≥ 3` → **reject**, and do not write
+4. If `count < 3` → `ZADD rl:user:42 <now> <now>`, then `EXPIRE rl:user:42 10` → **allow**. The TTL is a safety net so a quiet user does not leave the key behind forever.
 
 Each row is one arrival. Cutoff is `now − 10`. Only timestamps **strictly after** the cutoff count.
 
@@ -257,7 +277,7 @@ Those two integers are the same fixed-window keys as above. At 12:01:30:
 
 You still need the previous key **after that window has ended**, so `EXPIRE` must be `2 × window` (20s), not 10s. A fixed-window TTL of 10s would delete the previous count before you can weight it.
 
-On every request (Lua / pipeline so `GET` + `INCR` cannot race):
+On every request, again as one atomic script so the two `GET`s and the `INCR` cannot race:
 
 1. `curr_id = floor(now / 10)`, `prev_id = curr_id - 1`
 2. `elapsed = now % 10`, `weight = 1 − elapsed / 10`
@@ -269,8 +289,7 @@ On every request (Lua / pipeline so `GET` + `INCR` cannot race):
 Notes:
 
 - `elapsed` is "how many seconds into the current 10s bucket am I?" `now % 10` is the remainder after dividing by the window: at `now=14`, `14 % 10 = 4`, so you are 4 seconds into window `1` (`[10s, 20s)`).
-- `weight` is the fraction of the **previous** bucket that is still inside the sliding last-10-seconds. A lookback of 10s from t=14 starts at t=4, so it still covers 6s of window `0`.
-  That is `(10 − elapsed) / 10 = 1 − elapsed / 10 = 0.6`:
+- `weight` is the fraction of the **previous** bucket that is still inside the sliding last-10-seconds. A lookback of 10s from t=14 starts at t=4, so it still covers 6s of window `0`. That is `(10 − elapsed) / 10 = 1 − elapsed / 10 = 0.6`:
 
 ```plaintext
 window 0 [0, 10)              window 1 [10, 20)
@@ -319,7 +338,7 @@ Two integers of storage instead of every timestamp. The estimate is slightly hig
 
 **Cons:**
 
-- Slightly over- or under-counts vs a true sliding log
+- Slightly over- or under-counts compared with a true sliding window log
 
 **Best fit:** Default for HTTP APIs at scale (this is what many Redis implementations actually do, despite the name "sliding window").
 
@@ -340,25 +359,61 @@ Tokens refill at a steady rate. The bucket has a **capacity** (burst) and a **re
         allow if tokens ≥ 1, else 429
 ```
 
-A full bucket can be emptied immediately (the burst). After that, allows happen only as fast as refill:
+A full bucket can be emptied immediately (the burst). After that, allows happen only as fast as the refill rate:
 
 ```plaintext
-  time     0     1     2     3     4     5     6
-  tokens   4     3     2     1     0     1     2
-  request  ✓     ✓     ✓     ✓     ✗     ✓     ✓
-           |←—— burst of 4 ——→| empty  refill…
+  capacity 4, refill 2 tokens/s
+
+  t=0.0s   burst of 4   tokens 4 -> 0     all 4 allowed
+  t=0.1s   request      tokens 0.2        reject (needs 1)
+  t=0.5s   request      tokens 1.0        allow  -> 0
+  t=1.0s   request      tokens 1.0        allow  -> 0
+  t=1.1s   request      tokens 0.2        reject
+
+  a burst of 4 up front, then a sustained 2/s — exactly the configured refill rate
+```
+
+**Example:** capacity = 4, refill = 2 tokens/s, user `42`.
+
+There is no background timer refilling anything. The bucket is **two fields**, and refill is computed lazily on read:
+
+- Key: `rl:user:42` (a hash)
+- Fields: `tokens` (a float) and `last_refill` (a timestamp)
+
+On every request, as one atomic script:
+
+1. Read `tokens` and `last_refill`. If the key is missing, start at `tokens = capacity` and `last_refill = now`.
+2. `tokens = min(capacity, tokens + (now − last_refill) × refill_rate)`, then set `last_refill = now`
+3. If `tokens < cost` → **reject**, writing back only the refilled state
+4. If `tokens ≥ cost` → `tokens −= cost`, write back → **allow**
+5. `EXPIRE rl:user:42` a little past `capacity / refill_rate`, so an idle bucket cleans itself up (a bucket idle that long is full anyway, which is the same as absent)
+
+That lazy refill is the whole trick: two numbers and a subtraction give you a continuously refilling bucket without a single scheduled job.
+
+```plaintext
+t=0.1s   read  tokens=0    last_refill=0.0
+         refill  0 + (0.1 − 0.0) × 2 = 0.2
+         0.2 < 1  →  429, write back tokens=0.2 last_refill=0.1
+
+t=0.5s   read  tokens=0.2  last_refill=0.1
+         refill  0.2 + (0.5 − 0.1) × 2 = 1.0
+         1.0 ≥ 1  →  allow, write back tokens=0.0 last_refill=0.5
 ```
 
 **Pros:**
 
-- Allows a real burst, then enforces the average
-- Maps cleanly to "100/s sustained, burst 500"
+- Allows a real burst, then enforces the average — the shape most APIs actually want
+- Maps cleanly onto a documented contract: "100/s sustained, burst 500"
+- Two numbers per key, regardless of request rate
+- Refill is relative, so it does not care about clock alignment across hosts
 
 **Cons:**
 
-- Two knobs to tune; empty bucket is a hard reject unless you queue
+- Two knobs to tune instead of one, and the wrong burst size hides a sustained-overload problem
+- An empty bucket is a hard reject unless you also queue
+- Read-modify-write, so a shared deployment needs a script — unlike fixed window, whose bare `INCR` is atomic on its own
 
-**Best fit:** Public APIs where a short burst is fine but sustained overload is not. Common default (AWS, Stripe-style).
+**Best fit:** Public APIs where a short burst is fine but sustained overload is not. This is the common default (AWS and Stripe-style limits).
 
 ### Leaky bucket
 
@@ -377,40 +432,42 @@ Requests enter a queue (the bucket). They **leave at a constant rate**. If the q
    queue full → drop (or wait). The backend never sees the burst.
 ```
 
+The implementation is the mirror image of token bucket: two fields again, `level` and `last_leak`, with the leak computed lazily as `level = max(0, level − (now − last_leak) × leak_rate)`. A request is admitted when `level + 1 ≤ capacity`, and admission increments `level`. Token bucket counts what you *may still spend*; leaky bucket counts what is *already in flight*.
+
 **Pros:**
 
-- Smooth, predictable outflow to a fragile backend
+- Smooth, predictable outflow, so a fragile backend sees a constant rate no matter what arrives
+- Queue depth is a direct backpressure signal
 
 **Cons:**
 
-- Bursts turn into latency (if queued) or rejects (if not)
+- Bursts turn into latency (if queued) or rejects (if not) — never into a fast success
+- A queue adds a place for requests to sit and time out
 
-**Best fit:** Protecting a downstream that cannot absorb spikes (legacy DB, pager-duty-sensitive dependency).
+**Best fit:** Protecting a downstream that genuinely cannot absorb spikes, such as a legacy database or a fragile third-party dependency.
 
-Token bucket **shapes the incoming burst** (a short spike of allows, then throttle). Leaky bucket **shapes the outgoing rate** (backend always sees a drip). They are duals. In interviews, say which side you are smoothing.
+Token bucket **shapes the incoming burst** (a short spike of allows, then throttling). Leaky bucket **shapes the outgoing rate** (the backend always sees a drip). They are duals. In an interview, say explicitly which side you are smoothing.
 
-### Algorithm comparison
+### Choosing one
 
-| Algorithm       | Accuracy | Memory  | Burst             | Typical use              |
-| --------------- | -------- | ------- | ----------------- | ------------------------ |
-| Fixed window    | Low      | Lowest  | Boundary spike    | Simple quotas            |
-| Sliding log     | Highest  | Highest | Smooth            | Strict, low volume       |
-| Sliding counter | High     | Low     | Mostly smooth     | General HTTP             |
-| Token bucket    | High     | Low     | Intentional burst | Public APIs              |
-| Leaky bucket    | High     | Low     | Queued or dropped | Smoothing a weak backend |
+- **Default to token bucket** for a public HTTP API. It expresses the contract users care about ("N per second, burst M") and handles real client behaviour.
+- **Use the sliding window counter** when you want a plain per-window limit without the boundary spike, and two integers per key is the budget you have.
+- **Use fixed window** only when a 2x spike at the boundary is genuinely acceptable — internal quotas, dashboards, coarse monthly counters.
+- **Use the sliding window log** when exactness matters more than memory: login attempts, OTP sends, anything where "5 means 5".
+- **Use leaky bucket** when the constraint is downstream capacity rather than caller fairness.
 
 ## HTTP contract
 
-Rejected requests should be **machine-readable**, not just a generic 500.
+A rejected request should be **machine-readable**, so a client can react correctly instead of guessing.
 
-| Signal                                    | Meaning                                                                               |
-| ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| `429 Too Many Requests`                   | This identity hit a limit. Retrying immediately will fail.                            |
-| `503 Service Unavailable`                 | System overloaded or shedding. Not necessarily *this* client's fault.                 |
-| `Retry-After`                             | Seconds (or HTTP date) to wait. The most important client hint.                       |
-| `RateLimit-Limit` / `Remaining` / `Reset` | Current window budget (IETF `RateLimit` fields. Many APIs still use `X-RateLimit-*`). |
+| Signal                                      | Meaning                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `429 Too Many Requests`                     | This identity hit a limit. Retrying immediately will fail again.                       |
+| `503 Service Unavailable`                   | The system is overloaded or shedding. Not necessarily *this* client's fault.           |
+| `Retry-After`                               | Seconds (or an HTTP date) to wait. The single most important client hint.              |
+| `RateLimit-Limit` / `-Remaining` / `-Reset` | Current window budget (IETF `RateLimit` fields; many APIs still send `X-RateLimit-*`). |
 
-Return 429 for per-client limits and reserve 503 for global overload.
+Return `429` for per-client limits and reserve `503` for global overload. The distinction matters to the caller: a `429` means "you, slow down", a `503` means "everyone, come back later", and a well-written client backs off differently for each.
 
 ## How clients should retry
 
@@ -431,8 +488,7 @@ sequenceDiagram
 **Rules that belong in every client and SDK:**
 
 1. **Honor `Retry-After`.** If it is absent, use exponential backoff (for example 1s, 2s, 4s, …) with a cap.
-2. **Add jitter** (random delay). Without it, every client that hit the window boundary retries in lockstep and recreates the burst the limiter just stopped.
-   See [timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
+2. **Add jitter** (random delay). Without it, every client that hit the window boundary retries in lockstep and recreates the burst the limiter just stopped. See [timeouts, retries, and jitter](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/).
 3. **Cap attempts and total wait.** Infinite retries turn a 429 into a self-inflicted outage.
 4. **Retry 429 and 503 and do not blindly retry 400/401/403/404.** Those will not get better with time.
 5. **Idempotency for unsafe methods.** A retried `POST` can double-charge if the first request succeeded and the 429/timeout was on the response. Send an idempotency key — rate limiting alone does not make retries safe.
@@ -458,14 +514,15 @@ Distinguish **user-visible retry** (show "try again in 30s") from **autonomous r
 
 ## Distributed rate limiting
 
-Local counters on each replica are wrong once you have more than one process: `N` instances each allowing `L` requests yield `N × L`.
+Local counters on each replica are wrong once you have more than one process: `N` instances each allowing `L` requests yield `N × L`. The [load balancer](./13-load-balancing.md) offers no guarantee about which replica a given client lands on, so each one sees only a fraction of that client's traffic and independently concludes the client is well behaved.
 
 ```mermaid
 graph TD
     C[Clients] --> LB[Load balancer]
-    LB --> A[Replica A<br/>local count 100/100]
-    LB --> B[Replica B<br/>local count 100/100]
-    Note[Effective limit = 200]
+    LB --> A["Replica A<br/>local count 100/100"]
+    LB --> B["Replica B<br/>local count 100/100"]
+    A --> E["Effective limit = 200<br/>intended limit = 100"]
+    B --> E
 ```
 
 ### Approaches
@@ -479,11 +536,11 @@ All replicas talk to a fast store (Redis, Memcached, DynamoDB). For a fixed wind
 
 That is atomic enough for a counter. The naive `GET` → check → `SET` (read-modify-write) path from a single-node tutorial **races**: two replicas can both read 99 and both allow.
 
-Use a Lua script or `MULTI`/`INCR` when the algorithm needs compare-and-set (token bucket refill + consume). The extra RTT is the cost of a global limit.
+Any algorithm that reads state, computes, and writes it back — the token bucket refill-and-consume above, or the two `GET`s of a sliding window counter — needs a Lua script or `MULTI` instead. The extra round trip is the price of a genuinely global limit.
 
 #### Sticky identity
 
-Route the same user/IP to the same replica and limit locally. Simple, no Redis. Breaks on rebalance, many keys, and anycast/HTTP/2 connection changes.
+Route each user or IP to a fixed replica and limit locally. Simple, and no Redis on the request path. This is [session affinity](./13-load-balancing.md) applied to limiter state, and it inherits all of affinity's problems: it breaks on rebalance and deploys, it distributes load unevenly, and connection-level changes (anycast, HTTP/2 reconnects) can silently move a client to a fresh, empty counter.
 
 #### Local + async reconciliation
 
@@ -499,11 +556,9 @@ Catches bursts without a network round trip, then settles to the real cap. Same 
 
 ### Design issues specific to distributed rate limiting
 
-- **Fail-open vs fail-closed**: If Redis is down, do you allow (availability, risk of overload) or reject (safety, outage looks like a mass `429`)?
-  Public read APIs often fail open with a tight local cap while login and payments often fail closed to avoid a mass `429`.
+- **Fail-open vs fail-closed**: If Redis is down, do you allow (availability, risk of overload) or reject (safety, outage looks like a mass `429`)? Public read APIs often fail open with a tight local cap while login and payments often fail closed to avoid a mass `429`.
 - **Hot keys**: One celebrity account is one Redis key. Shard the counter (`user:123:{0..k}` and sum) or keep a local admission cache in front.
-- **Multi-region**: A *global* monthly quota needs a global store or a split budget per region (`L / regions`, with a small reserve).
-  Per-region rate limits are simpler and usually what you want for abuse; billing quotas are the hard global ones.
+- **Multi-region**: A *global* monthly quota needs a global store or a split budget per region (`L / regions`, with a small reserve). Per-region rate limits are simpler and usually what you want for abuse; billing quotas are the hard global ones.
 - **Clock skew**: Fixed windows aligned to wall clock disagree across hosts. Prefer relative refill (token bucket) or accept small inaccuracy.
 - **Cardinality**: A key per IP per minute can explode memory. TTL everything, and cap the number of tracked keys (LRU / approximate).
 - **Accuracy vs latency**: Slightly over-allowing is often better than adding `2ms` to every request.
@@ -517,13 +572,13 @@ Catches bursts without a network round trip, then settles to the real cap. Same 
 - **Idempotent reads vs costly writes**: Tighter limits on `POST /search` or `POST /export` than on `GET /item/:id`.
 - **Human vs machine**: Interactive UIs want small bursts (token bucket). Batch jobs should be given a separate key and a leaky-bucket or queued path, not compete with the UI budget.
 - **Observability**: Alert on 429 ratio, limiter store latency, and "limit too low" tickets. A spike in 429s can be an attack, a bad client deploy, or an undersized limit after a launch.
-- **Legal / privacy**: Storing every request timestamp (sliding log) per IP is a data-retention choice, not only a data-structure choice.
+- **Legal / privacy**: Storing every request timestamp (the sliding window log) per IP is a data-retention choice, not only a data-structure choice.
 
 ## Design guidelines
 
 - Name the key, the window, the burst, and what happens when the store is down
 - Stack coarse edge limits with precise service limits; do not rely on one layer
-- Prefer token bucket or sliding counter for APIs; use fixed window only when a boundary spike is acceptable
+- Prefer token bucket or the sliding window counter for APIs; use fixed window only when a boundary spike is acceptable
 - Return `429` + `Retry-After` + remaining budget; document it for SDK authors
 - Assume clients will retry; design jitter and idempotency into the contract
 - Use a shared atomic counter (or accept over-allow) once you have more than one replica
@@ -532,7 +587,7 @@ Catches bursts without a network round trip, then settles to the real cap. Same 
 ## Interview talking points
 
 - Start from **who** (IP vs user vs key) and **what** (rate vs quota vs concurrency vs shedding).
-- Explain the **fixed-window boundary burst**, then say why you would pick token bucket or sliding counter instead.
+- Explain the **fixed-window boundary burst**, then say why you would pick token bucket or the sliding window counter instead.
 - For multiple replicas, say **local limits multiply** and describe Redis `INCR` (atomic) vs get-then-set (racy).
 - Mention **fail-open vs fail-closed** when the limiter store dies.
 - Close the loop with **clients**: `Retry-After`, jitter, retry caps, idempotency keys — otherwise `429`s become a synchronized retry storm.

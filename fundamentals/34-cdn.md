@@ -10,25 +10,27 @@ concepts:
   - signed-urls
   - video-segmentation
 related:
+  - fundamentals/03-latency-and-throughput.md
+  - fundamentals/04-http-versions.md
+  - fundamentals/08-availability.md
   - fundamentals/11-caching.md
   - fundamentals/12-proxies.md
   - fundamentals/13-load-balancing.md
-  - fundamentals/03-latency-and-throughput.md
-  - fundamentals/08-availability.md
-  - fundamentals/04-http-versions.md
+  - fundamentals/32-rate-limiting.md
+  - fundamentals/33-back-of-the-envelope-calculations.md
 ---
 
 # CDN (Content Delivery Network)
 
-A CDN is a geographically distributed network of caches and reverse proxies that serve content from a point of presence (PoP) close to the user.
+A CDN is a geographically distributed network of caches and [reverse proxies](./12-proxies.md) that serve content from a point of presence (PoP) close to the user.
 
-It exists to cut user-facing latency, absorb traffic that would otherwise hit the origin, and survive spikes that a single region cannot.
+It exists to cut user-facing latency, absorb traffic that would otherwise hit the origin, and survive spikes that a single region cannot. Everything a single reverse proxy does — TLS termination, routing, caching, filtering — a CDN does too; the new ingredient is that it does it in hundreds of places at once.
 
 ## Why CDNs exist
 
 Three constraints show up in almost every global product:
 
-- **Physics**: Cross-continent round trips are 100-300ms before the origin does any work. Putting bytes in a nearby PoP removes most of that delay for cacheable content.
+- **Physics**: A cross-continent round trip is [roughly 100-200 ms](./33-back-of-the-envelope-calculations.md) before the origin does any work. Putting bytes in a nearby PoP removes most of that delay for cacheable content, and no amount of faster hardware at the origin substitutes for it.
 - **Origin capacity**: A popular image, JS bundle, or video segment can be requested millions of times. Serving it once from origin and many times from edge is the difference between a viable architecture and a melted origin.
 - **Blast radius**: DDoS, traffic spikes, and regional outages hit the edge first. A CDN is a large, shared front door with more bandwidth than a typical origin.
 
@@ -61,6 +63,15 @@ sequenceDiagram
 4. Subsequent requests in that region skip the origin until TTL expires or the object is purged.
 
 Even on a miss, the edge still helps: TLS is terminated nearby, connections to origin are reused, and HTTP/2 or HTTP/3 can multiplex many objects over one connection.
+
+## Getting users to an edge
+
+Step 1 above — "DNS or anycast sends the client to a nearby PoP" — has two common implementations:
+
+- **Anycast**: The same IP is announced from many PoPs, and BGP routes each client to the nearest announcement. Fast failover with no DNS TTL to wait out, but routing is "BGP-near", not always "user-near".
+- **GeoDNS**: DNS answers with a specific PoP address based on resolver location or latency measurements. Easier per-region steering and load shedding, but a change propagates no faster than the record TTL.
+
+Most providers combine both. This is the same **user to region** decision described under [global load balancing](./13-load-balancing.md); the difference is only what happens next, since a CDN tries to answer at the edge rather than forward to a regional origin.
 
 ## Push vs pull
 
@@ -108,8 +119,7 @@ The origin (or CDN config) decides *what* is cacheable and *for how long*. HTTP 
 ### How long it may be reused
 
 - `max-age=N` is the TTL in seconds, counted from when the response was generated. During that window a cache may serve the object without asking the origin. Short TTLs mean fresher content and more origin load.
-- `s-maxage=N` is the same idea, but **only for shared caches**. Browsers still follow `max-age`. That split is how you give the CDN a longer (or shorter) life than the browser:
-  hashed JS might be `max-age=31536000` everywhere, while HTML is `max-age=0, s-maxage=60` so users always revalidate and the edge still absorbs most origin traffic.
+- `s-maxage=N` is the same idea, but **only for shared caches**. Browsers still follow `max-age`. That split is how you give the CDN a longer (or shorter) life than the browser: hashed JS might be `max-age=31536000` everywhere, while HTML is `max-age=0, s-maxage=60` so users always revalidate and the edge still absorbs most origin traffic.
 - `immutable` tells the browser the bytes will not change during `max-age`, so a refresh should not revalidate.
 
 ### When it must not be served from cache
@@ -130,18 +140,15 @@ The default cache key is roughly scheme + host + path + selected query params. `
 
 - `Vary: Accept-Encoding` is the common, correct case: gzip and brotli are different objects. `Vary: Accept` or `Vary: Accept-Language` is reasonable for content negotiation, at the cost of more variants and a lower hit ratio.
 
-- `Vary: Cookie` or `Vary: Authorization` is usually a mistake at the CDN. It explodes cardinality (one entry per user) and, if misconfigured, can leak one user's response to another.
-  Personalized content belongs behind `private` / `no-store`, not behind a huge `Vary` list.
+- `Vary: Cookie` or `Vary: Authorization` is usually a mistake at the CDN. It explodes cardinality (one entry per user) and, if misconfigured, can leak one user's response to another. Personalized content belongs behind `private` / `no-store`, not behind a huge `Vary` list.
 
 ### How you change a cached object
 
 TTL is the baseline safety net. After it expires, the next request is a miss or a revalidation.
 
-**Versioned URLs** (`app.8f3c.js`) are the reliable strategy for static assets: a new build is a new cache key, so you can set a long TTL and never purge.
-The HTML that *references* those URLs keeps a short TTL (or `no-cache`) so users pick up the new filenames quickly.
+**Versioned URLs** (`app.8f3c.js`) are the reliable strategy for static assets: a new build is a new cache key, so you can set a long TTL and never purge. The HTML that *references* those URLs keeps a short TTL (or `no-cache`) so users pick up the new filenames quickly.
 
-**Purge / invalidation** deletes or marks an object stale across PoPs. Treat it as eventually consistent: some PoPs update in seconds, others lag.
-Do not rely on purge as the only safety net for legal or security takedowns; combine it with short TTL or token expiry.
+**Purge / invalidation** deletes or marks an object stale across PoPs. Treat it as eventually consistent: some PoPs update in seconds, others lag. Do not rely on purge as the only safety net for legal or security takedowns; combine it with short TTL or token expiry.
 
 ### Serving stale on purpose
 
@@ -149,6 +156,21 @@ Do not rely on purge as the only safety net for legal or security takedowns; com
 - `stale-if-error=N` lets the edge keep serving that expired object if origin is down or erroring, for up to `N` seconds.
 
 Both improve tail latency and availability at the cost of a bounded window of old content.
+
+### Directive quick reference
+
+| Directive                  | What it does                                                          | Typical use                               |
+| -------------------------- | --------------------------------------------------------------------- | ----------------------------------------- |
+| `public`                   | A shared cache (CDN, proxy) may store it and reuse it for other users | Static assets, public API bodies          |
+| `private`                  | Only the end user's browser may store it                              | Session-specific HTML or JSON             |
+| `no-store`                 | No cache may write it anywhere                                        | Secrets, payment payloads                 |
+| `no-cache`                 | May be stored, but must revalidate before every reuse                 | HTML that must always be current          |
+| `max-age=N`                | Freshness lifetime in seconds, for every cache                        | Hashed assets (`max-age=31536000`)        |
+| `s-maxage=N`               | Freshness lifetime for shared caches only                             | Short edge TTL on otherwise uncached HTML |
+| `must-revalidate`          | Once stale, check origin and do not serve the old body                | Correctness-critical responses            |
+| `immutable`                | Body will not change during `max-age`, so skip revalidation           | Content-hashed assets                     |
+| `stale-while-revalidate=N` | Serve stale now, refresh in the background                            | Latency-sensitive pages                   |
+| `stale-if-error=N`         | Keep serving stale while origin is failing                            | Availability during an incident           |
 
 ## Origin protection
 
@@ -169,28 +191,24 @@ Patterns:
 - **Restrict origin**: allowlist CDN egress IPs, or require a shared secret header, so clients cannot bypass the CDN.
 - **Tiered TTLs**: HTML short, hashed assets long, so origin sees mostly HTML and API traffic.
 
+Hit ratio is a multiplier on origin load, and the relationship is not linear in the direction people expect. At 20,000 read RPS reaching the edge:
+
+- 95% hit ratio leaves 1,000 RPS at origin
+- 90% hit ratio leaves 2,000 RPS — a five-point drop **doubles** origin traffic
+- 80% hit ratio leaves 4,000 RPS
+
+That is why a cache-key change (a new query parameter, an over-broad `Vary`) is an origin capacity incident, not a performance nit. See [back-of-the-envelope calculations](./33-back-of-the-envelope-calculations.md) for deriving the edge number in the first place.
+
 Monitor **origin request rate** and **cache hit ratio**, not only edge traffic. A 99% hit ratio on bytes can still melt origin if the 1% are uncacheable, huge, or thundering.
-
-## Routing users to an edge
-
-Two common control planes:
-
-- **Anycast**: the same IP is announced from many PoPs. BGP sends the client to a nearby announcement. Fast failover, fewer DNS TTLs to wait out, but routing is "BGP-near," not always "user-near."
-- **GeoDNS**: DNS answers with a PoP IP based on resolver location or latency measurements. Easier traffic steering and load shedding per region.
-
-Many providers combine both. The interview point is the same as [global load balancing](./13-load-balancing.md): you are choosing a **user → region** map, then a **region → origin** map,
-and those maps have different failure modes.
 
 ## Dynamic content and private files
 
 Not everything is a public image.
 
-- **Uncacheable or personalized responses**: Can still terminate at the edge — TLS, WAF, rate limits, geo routing — then proxy to origin.
+- **Uncacheable or personalized responses**: Can still terminate at the edge — TLS, WAF, [rate limits](./32-rate-limiting.md), geo routing — then proxy to origin.
 - **Signed URLs / cookies**: Grant time-limited access to private objects (downloads, video) without putting the origin on the hot path. The edge checks the signature and origin never sees most requests.
-- **Edge compute** (workers, functions): Runs small logic at the PoP — A/B cookies, header rewrites, auth checks, HTML assembly from fragments.
-  Keep it tiny; heavy work belongs at origin, and the edge is for latency-sensitive, stateless decisions.
-- **APIs**: Cache GET responses only when the body is shareable (public catalog, config, featured lists). Authenticated, user-specific JSON is usually `private` or `no-store`.
-  If you cache it, the cache key must include the authorization dimension, or you will leak data across users.
+- **Edge compute** (workers, functions): Runs small logic at the PoP — A/B cookies, header rewrites, auth checks, HTML assembly from fragments. Keep it tiny; heavy work belongs at origin, and the edge is for latency-sensitive, stateless decisions.
+- **APIs**: Cache GET responses only when the body is shareable (public catalog, config, featured lists). Authenticated, user-specific JSON is usually `private` or `no-store`. If you cache it, the cache key must include the authorization dimension, or you will leak data across users.
 
 ## Large files and video
 
@@ -231,4 +249,3 @@ The architectural lesson: turn a huge, sequential object into many small, indepe
 
 - [MDN: HTTP caching](https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching)
 - [RFC 9111: HTTP Caching](https://www.rfc-editor.org/rfc/rfc9111.html)
-</content>

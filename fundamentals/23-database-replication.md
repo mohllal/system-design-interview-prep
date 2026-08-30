@@ -11,6 +11,7 @@ concepts:
   - change-data-capture
 related:
   - fundamentals/24-database-partitioning.md
+  - fundamentals/25-database-concurrency-control.md
   - fundamentals/27-cap-and-pacelc-theorems.md
   - fundamentals/28-leader-election.md
   - fundamentals/29-consensus.md
@@ -21,11 +22,14 @@ related:
 
 # Database replication
 
-Replication keeps **copies of the same data** on more than one node.
+Replication and partitioning solve different problems. Mixing them up is the usual design-interview miss.
 
-What it buys is a durability choice, a failover candidate, extra read capacity with lag, and a place to hang backups, analytics, and CDC.
+- **Replication** puts the *same* rows on more than one node. That is how you survive a disk death, serve more **reads**, and choose an RPO.
+- **Partitioning** (sharding when each partition has its own servers) puts *different* rows on different nodes. That is how you scale **writes, storage, and working set** — see [partitioning](./24-database-partitioning.md).
 
-In production each **shard** is usually its own replica set. This note is about the replica set: how the log moves, who you wait for, who may write, and what happens when a node lies or dies.
+Concretely, copies buy a durability choice, a failover candidate, extra read capacity with lag, and a place to hang backups, analytics, and CDC. They do not buy write capacity, and that is the whole reason the other axis exists.
+
+A production database almost always does both: each **shard** is its own replica set, with its own primary, its own log, and its own failover. Everything below describes one replica set — how the log moves, who you wait for, who may write, and what happens when a node lies or dies. In a sharded cluster the same machinery runs once per shard.
 
 ## What you are choosing
 
@@ -46,8 +50,7 @@ Most single-primary systems ship a **log of changes**, not "the database file" o
 
 Statement-based replication (sending the raw `UPDATE` text) breaks on non-deterministic SQL (`NOW()`, `RAND()`, triggers), so it is rare in production.
 
-If a replica disconnects, the primary must **retain** WAL until that replica consumes it (replication slots, binlog retention).
-A dead replica with a slot held open fills the primary disk and takes the cluster down. TTL the slot or drop the replica — do not assume infinite retention.
+If a replica disconnects, the primary must **retain** WAL until that replica consumes it (replication slots, binlog retention). A dead replica with a slot held open fills the primary disk and takes the cluster down. TTL the slot or drop the replica — do not assume infinite retention.
 
 Useful variants of "a replica":
 
@@ -70,15 +73,15 @@ sync to all    client waits for every replica
                                      write latency = slowest replica; a dead replica stalls writes
 ```
 
-Semi-sync ("wait for one") is the usual compromise: the ack is not local-only, and a single slow/far replica does not freeze the primary. Fully sync to all replicas is for a small, critical set of writes, not the whole OLTP path.
+Semi-sync ("wait for one") is the usual compromise: the ack is not local-only, and a single slow or far replica does not freeze the primary. Fully sync to all replicas is for a small, critical set of writes, not the whole OLTP path.
 
-Sync replication: if you wait for a replica that is partitioned away, you either stall writes (choose C) or ack without that copy (choose A, RPO > 0).
+Any sync mode is a CAP choice in miniature: if the replica you wait on is partitioned away, you either stall writes (choose consistency) or ack without that copy (choose availability, RPO > 0). See [CAP and PACELC](./27-cap-and-pacelc-theorems.md).
 
 ## Who accepts writes
 
 ### One primary
 
-The default option. It works as follows:
+The default, and the only shape that needs no merge rules:
 
 1. All writes go to one primary node
 2. Replicas pull or receive the log
@@ -140,10 +143,11 @@ Replica-set **elections** (MongoDB, etcd, Kafka KRaft) are a different quorum: m
 
 ## Failover is the hard part
 
-A replica existing is not failover. Failover is: decide the primary is gone, pick a successor that has the **needed log**, **stop the old primary from writing**, and point clients at the new one.
+A replica existing is not failover. Failover is: decide the primary is gone, pick a successor that has the **needed log**, **stop the old primary from writing** (fencing), and point clients at the new one.
 
-Promote the replica that is **most caught up**, not a random one. An async replica promoted to primary **loses** whatever was not replicated — the RPO you already chose.
-Promoting a far-behind replica because it is the only one left is unclean leader election under another name.
+Skip the fencing step and a paused-then-resumed old primary keeps accepting writes: two primaries, two divergent logs, split brain.
+
+Promote the replica that is **most caught up**, not a random one. An async replica promoted to primary **loses** whatever was not replicated — the RPO you already chose. Promoting a far-behind replica because it is the only one left is unclean leader election under another name.
 
 After promotion, replicas that were ahead of the new primary on some fork must **rewind** or be rebuilt.
 
@@ -151,10 +155,13 @@ After promotion, replicas that were ahead of the new primary on some fork must *
 
 Replica lag is seconds **and** bytes (or LSN delta), not a boolean.
 
-- **Read-your-writes**: a user saves a profile; the next GET hits a replica 2s behind, so they see the old row.
-  Fix: read from the primary after a write, stick the session to the primary, or wait until the replica's apply LSN is at least the write's LSN.
+- **Read-your-writes**: a user saves a profile; the next GET hits a replica 2s behind, so they see the old row. Fix: read from the primary after a write, stick the session to the primary, or wait until the replica's apply LSN is at least the write's LSN.
 - **Monotonic reads**: do not bounce a user between a caught-up replica and a stale one — time would appear to go backwards. Pin the session to one replica or to the primary.
 - **Linearizable reads**: must see the latest committed write cluster-wide. That means the primary, a sync replica, or a quorum read — not a random async replica.
+
+None of this is an isolation-level problem. A replica serves a perfectly consistent snapshot that is simply old, so `SERIALIZABLE` on the replica does not help; the fix is routing (primary, pinned session, or wait-for-LSN).
+
+The anomalies in [concurrency control](./25-database-concurrency-control.md) are transactions racing on **one** node — these are a session moving **between** nodes. Interviews reward telling the two apart.
 
 Analytics, backups, and CDC are what replicas are *for* more often than "2× OLTP read QPS."
 
@@ -170,6 +177,7 @@ CDC consumers (Kafka, Debezium) are replicas of the log in another system. They 
 - Replace backups — see above.
 - Give you multi-region for free — 100–400ms sync is a product decision.
 - Remove the primary as a write bottleneck unless you change **who accepts writes**.
+- Provide isolation. Two transactions racing on the same row is a [concurrency control](./25-database-concurrency-control.md) problem on one primary, and adding copies does not touch it.
 
 ## Order of moves
 
@@ -179,15 +187,15 @@ CDC consumers (Kafka, Debezium) are replicas of the log in another system. They 
 4. Delayed replica or PITR before you need to undo a replicated `DROP`
 5. Rehearse failover, including fencing and client routing, before you need it
 6. Second writable region or leaderless quorums only with an explicit conflict or `(R, W)` story
-7. Shard when the primary cannot take the writes — copies will not save you
+7. [Shard](./24-database-partitioning.md) when the primary cannot take the writes — copies will not save you
 
 ## Interview talking points
 
-- Replication is **copies**, partitioning is **split**. Replica set per shard.
+- Name the **axis**: replication is copies, partitioning is split. Replica set per shard.
 - Ack policy is **RPO vs write latency**. Async means you can lose the tail.
 - Single primary is the default. Extra primaries mean conflicts. Leaderless means `(R, W)` and repair. Election quorum ≠ Dynamo quorum.
 - Failover without **fencing** is split brain. Promote the most caught-up replica.
-- Replica reads need a **lag** sentence (read-your-writes), not "reads scale."
+- Replica reads need a **lag** sentence (read-your-writes), not "reads scale." Lag is not an isolation level.
 - Slots/retention: a dead replica can fill the primary.
 
 ## Reference materials

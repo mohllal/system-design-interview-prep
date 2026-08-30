@@ -5,7 +5,7 @@ concepts:
   - primary-and-foreign-keys
   - joins
   - acid-transactions
-  - isolation-levels
+  - transaction-scope
   - write-ahead-logging
   - normalization
   - denormalization
@@ -16,24 +16,25 @@ related:
   - fundamentals/23-database-replication.md
   - fundamentals/24-database-partitioning.md
   - fundamentals/25-database-concurrency-control.md
+  - advanced/06-postgresql-internals.md
 ---
 
 # Relational databases
 
-A relational database stores data in **tables**.
+A relational database stores data in **tables** with a declared schema: named columns, types, and constraints.
 
-Each table has a declared schema: named columns, types, and constraints.
+The engine can join tables, enforce those constraints, and run **transactions** so several writes succeed or fail together.
 
 Core components:
 
-- **Tables**: Structured data storage representing entities (customers, orders)
+- **Tables**: Structured storage representing entities (customers, orders)
 - **Rows**: Individual records containing specific data instances
-- **Columns**: Attributes defining data types and constraints
+- **Columns**: Attributes with a declared type and constraints
 - **Primary keys**: Unique identifiers for each row
 - **Foreign keys**: References establishing relationships between tables
-- **Indexes**: Data structures improving query performance
+- **Indexes**: Side structures that make lookups cheap, see [Indexes](./22-database-indexes.md)
 
-The engine can join tables, enforce constraints, and run **transactions** so several writes succeed or fail together.
+This note covers the model, ACID, and normalization. For the other models see [Non-Relational Databases](./20-non-relational-databases.md), and for choosing between them see [SQL vs NoSQL](./21-sql-vs-nosql.md).
 
 ## When this is the right tool
 
@@ -47,7 +48,7 @@ Use a relational database when:
 It is a poor default when:
 
 - The working set or write QPS no longer fits one primary
-- The document *is* the API and you almost never join (a document store may match the access path)
+- The document *is* the API and you almost never join, so a [document store](./20-non-relational-databases.md) matches the access path better
 - You only need cache semantics (Redis), graph walks, or append-only metrics
 
 ## Tables, keys, and joins
@@ -66,17 +67,17 @@ order_items (order_id FK, product_id FK)
 
 - **Primary key**: Stable identity of a row
 - **Foreign key**: A column that must point at an existing PK (or NULL)
-- **Join**: The engine matches keys
+- **Join**: The engine matches keys at read time
 
-Normalize so each fact lives in one place and join at read time when the question needs several facts.
+Normalize so each fact lives in one place, then join when the question needs several facts.
 
 If every screen is "user plus their last 20 posts," you will denormalize or cache. That is an access-path choice, not a reason to abandon the relational model for the system of record.
 
 ## SQL (Structured Query Language)
 
-SQL provides a standardized interface for relational database operations, supporting complex queries, transactions, and data integrity constraints.
+SQL is the declarative interface to the model: you state the result you want, and the planner decides how to get it.
 
-SQL operations fall into five categories:
+Its operations fall into five categories:
 
 | Category                           | Commands                     |
 | ---------------------------------- | ---------------------------- |
@@ -89,6 +90,8 @@ SQL operations fall into five categories:
 ## Transactions and ACID
 
 A **transaction** is a batch of reads and writes that the database treats as one unit.
+
+ACID names the four guarantees the engine gives that unit. The part that matters in an interview is the **scope**: in a relational database the default unit spans many rows across many tables, which is exactly the property most non-relational stores narrow.
 
 ### Atomicity
 
@@ -103,7 +106,7 @@ UPDATE accounts SET balance = balance + 100 WHERE id = 2;
 COMMIT; -- Both updates succeed, or both rollback
 ```
 
-The database engine uses a log plus rollback (or undo) to make that true.
+The engine uses a log plus rollback (undo) to make that true.
 
 ### Consistency
 
@@ -113,23 +116,19 @@ The database only commits states that pass **declared** constraints:
 - **Referential integrity**: Foreign key targets exist
 - **Domain integrity**: Enforced via CHECK / NOT NULL / unique constraints
 
-Example: "Order total equals the sum of lines" is consistency only if you actually declared it (or enforced it in the same transaction in the app).
+The word "declared" is load-bearing. A `CHECK` covers rules that fit in one row:
 
 ```sql
-CHECK (total_amount = (
-    SELECT SUM(quantity * unit_price) 
-    FROM order_items 
-    WHERE order_id = orders.order_id
-))
+CHECK (quantity > 0 AND total_amount >= 0)
 ```
+
+"Order total equals the sum of its lines" spans two tables, and the major engines reject subqueries inside a `CHECK`. That invariant is a guarantee only if you enforce it with a trigger, or in application code running inside the **same** transaction. The engine holds whatever you declared; it does not infer the rule for you.
 
 ### Isolation
 
 Concurrent transactions should not trample each other.
 
-How much they can see of each other is the **isolation level**.
-
-That is a long topic of its own: dirty reads, phantoms, write skew, locks vs MVCC, see [Database Concurrency Control](./25-database-concurrency-control.md).
+How much they can see of each other is the **isolation level**, and that is a long topic of its own: dirty reads, phantoms, write skew, locks vs MVCC. See [Database Concurrency Control](./25-database-concurrency-control.md).
 
 ### Durability
 
@@ -153,9 +152,15 @@ client  →  COMMIT
          data files (checkpoint, later)
 ```
 
+### Where BASE fits
+
+**BASE** (Basically Available, Soft state, Eventual consistency) is the label usually attached to non-relational stores, and it is best read as the same four concerns with two dials turned: the atomic unit shrinks to one key, document, or partition, and consistency becomes something replicas reach *eventually* rather than at `COMMIT`.
+
+It is not a hard property of the category — plenty of non-relational products keep a single primary and a narrow but strict transaction. See [ACID and BASE](./20-non-relational-databases.md#acid-and-base) for the row-by-row contrast and for what the popular products actually default to.
+
 ## Normalization
 
-Normalization reduces data redundancy and improves data integrity by organizing tables according to normal forms.
+Normalization reduces redundancy and prevents update anomalies by organizing tables according to normal forms.
 
 ### First normal form (1NF)
 
@@ -166,102 +171,92 @@ Requirements:
 - **Primary key**: Each table must have a primary key
 - **No repeating groups**: No repeating columns (e.g., phone1, phone2, phone3)
 
-Example: Violates atomicity and has repeating groups:
+Violation — `Phones` and `Orders` each pack a list into one cell:
 
-```plaintext
-Customers:
-| CustomerID | Name     | Phones              | Orders           |
-|------------|----------|---------------------|------------------|
-| 1          | John Doe | 555-1234, 555-5678  | Laptop, Mouse    |
-```
+| CustomerID | Name     | Phones             | Orders        |
+| ---------- | -------- | ------------------ | ------------- |
+| 1          | John Doe | 555-1234, 555-5678 | Laptop, Mouse |
 
-After 1NF:
+After 1NF, each repeating group becomes its own table:
 
-```plaintext
-Customers:
+**Customers**
+
 | CustomerID | Name     |
-|------------|----------|
+| ---------- | -------- |
 | 1          | John Doe |
 
-CustomerPhones:
+**CustomerPhones**
+
 | CustomerID | Phone    |
-|------------|----------|
+| ---------- | -------- |
 | 1          | 555-1234 |
 | 1          | 555-5678 |
 
-Orders:
+**Orders**
+
 | OrderID | CustomerID | Product |
-|---------|------------|---------|
+| ------- | ---------- | ------- |
 | 1       | 1          | Laptop  |
 | 2       | 1          | Mouse   |
-```
 
 ### Second normal form (2NF)
 
-Requirement: Must be in 1NF + all non-key attributes fully depend on the entire primary key (eliminates partial dependencies).
+Requirement: 1NF, plus every non-key attribute depends on the **entire** primary key (no partial dependencies).
 
-Example: Composite key (`PlayerID`, `ItemType`):
+Violation — the key is the pair (`PlayerID`, `ItemType`), but `PlayerRating` depends on `PlayerID` alone, so it is duplicated on every row for that player:
 
-```plaintext
-PlayerItems:
 | PlayerID | ItemType | ItemQuantity | PlayerRating |
-|----------|----------|--------------|--------------|
+| -------- | -------- | ------------ | ------------ |
 | jodge1   | amulets  | 2            | Intermediate |
 | jodge1   | rings    | 4            | Intermediate |
 | gilal9   | coins    | 20           | Advanced     |
-```
 
-Issue: `PlayerRating` depends only on `PlayerID`, not the full key (`PlayerID`, `ItemType`).
+After 2NF, the partially-dependent attribute moves to a table keyed by what it actually depends on:
 
-After 2NF:
+**PlayerItems**
 
-```plaintext
-PlayerItems:
 | PlayerID | ItemType | ItemQuantity |
-|----------|----------|--------------|
+| -------- | -------- | ------------ |
 | jodge1   | amulets  | 2            |
 | jodge1   | rings    | 4            |
 | gilal9   | coins    | 20           |
 
-Players:
+**Players**
+
 | PlayerID | PlayerRating |
-|----------|--------------|
+| -------- | ------------ |
 | jodge1   | Intermediate |
 | gilal9   | Advanced     |
-```
 
 ### Third normal form (3NF)
 
-Requirement: Must be in 2NF + no transitive dependencies (non-key attributes depend only on the primary key, not on other non-key attributes).
+Requirement: 2NF, plus no transitive dependencies — non-key attributes depend only on the key, not on each other.
 
-Example:
+Violation — `PlayerID` determines `PlayerSkillLevel`, which in turn determines `PlayerRating`:
 
-```plaintext
-Players:
 | PlayerID | PlayerRating | PlayerSkillLevel |
-|----------|--------------|------------------|
+| -------- | ------------ | ---------------- |
 | jodge1   | Intermediate | 6                |
 | gilal9   | Advanced     | 9                |
-```
 
-Issue: `PlayerRating` depends on `PlayerSkillLevel`, creating a transitive dependency: PlayerID → PlayerSkillLevel → PlayerRating
+After 3NF, the derived attribute moves to the table that owns the rule:
 
-After 3NF:
+**Players**
 
-```plaintext
-Players:
 | PlayerID | PlayerSkillLevel |
-|----------|------------------|
+| -------- | ---------------- |
 | jodge1   | 6                |
 | gilal9   | 9                |
 
-RatingLevels:
+**RatingLevels**
+
 | SkillLevel | Rating       |
-|------------|--------------|
+| ---------- | ------------ |
 | 0-4        | Beginner     |
 | 5-7        | Intermediate |
 | 8-10       | Advanced     |
-```
+
+Higher forms exist (BCNF, 4NF), but 3NF is where practical OLTP schemas stop. Past that point you are usually trading readability for edge cases that a constraint handles better.
 
 ### Why you still denormalize
 
@@ -271,11 +266,7 @@ Joins cost CPU and I/O. Read-heavy paths often keep a copy:
 - A summary table or materialized view for dashboards
 - A cache in Redis for the hot document
 
-You then own **refresh**:
-
-- Trigger (e.g. a database trigger)
-- App dual-write
-- Nightly job
+You then own **refresh**, via a database trigger, an application dual-write, or a nightly job.
 
 The trade-off:
 
@@ -283,9 +274,11 @@ The trade-off:
 - Writes get more places to update
 - Staleness becomes a product decision
 
+Non-relational stores make the same trade, but they usually **start** denormalized because there is no cheap join planner to fall back on.
+
 ## How a query actually runs
 
-SQL is declarative so the **planner** picks an access path.
+SQL is declarative, so the **planner** picks an access path.
 
 Typical choices:
 
@@ -326,6 +319,6 @@ Do not expect the database to enforce rules that need other services (inventory 
 ## Interview talking points
 
 - Relational means **tables, keys, joins, transactions**, not "we use SQL."
-- ACID: atomic commit, declared constraints, isolation, WAL durability.
+- ACID: atomic commit, declared constraints, isolation, WAL durability — over a unit that spans **many rows in many tables**. That scope is what BASE narrows.
 - Normalize to avoid update anomalies. Denormalize a **named** read path and say how you refresh it.
 - Scale reads with replicas and scale writes with partitioning. Do not start with "maybe Mongo."

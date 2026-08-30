@@ -8,11 +8,13 @@ concepts:
   - delivery-semantics
   - dead-letter-queue
   - idempotent-consumers
+  - transactional-outbox
   - event-streaming
 related:
   - fundamentals/06-communication-patterns.md
   - fundamentals/30-pub-sub.md
   - fundamentals/14-resilience.md
+  - fundamentals/15-observability.md
   - advanced/05-kafka-architecture.md
 ---
 
@@ -22,7 +24,7 @@ Messaging lets services communicate asynchronously through a broker, so producer
 
 The goal of this document is not to pick a single broker, but to choose the right channel, routing, and delivery semantics for latency, scale, and failure handling.
 
-For the broader sync vs async choice, see [Communication Patterns](./06-communication-patterns.md). For fan-out specifically, see [Pub/Sub](./30-pub-sub.md).
+For the broader synchronous versus asynchronous choice, see [Communication Patterns](./06-communication-patterns.md). For topics, subscriptions, retention and replay, and event schema design, see [Pub/Sub](./30-pub-sub.md). This document is the canonical place for delivery semantics and reliability patterns, which apply to queues and topics alike.
 
 ## Why use messaging?
 
@@ -64,13 +66,13 @@ graph LR
     Q --> W3[Worker 3]
 ```
 
-**Strengths:**
+**Pros:**
 
 - Smooths bursts by buffering work
 - Easy to scale by adding competing consumers
 - Natural fit for retries and dead-letter queues
 
-**Trade-offs:**
+**Cons:**
 
 - Processing is asynchronous, so the producer does not know when work finishes
 - Ordering across multiple consumers is usually not guaranteed
@@ -89,12 +91,12 @@ graph TD
     T --> S3[Analytics]
 ```
 
-**Strengths:**
+**Pros:**
 
 - One event can drive many independent workflows
 - New subscribers can be added without changing the producer
 
-**Trade-offs:**
+**Cons:**
 
 - Harder end-to-end tracing and debugging
 - Requires idempotent consumers and schema discipline
@@ -117,12 +119,12 @@ sequenceDiagram
     Broker->>Client: Deliver reply
 ```
 
-**Strengths:**
+**Pros:**
 
 - Caller still gets a result, while workers scale independently
 - Useful when the work is slow but the API contract is request-response
 
-**Trade-offs:**
+**Cons:**
 
 - Timeouts, correlation, and abandoned replies add complexity
 - The caller is blocked or polling, which reduces some of messaging's decoupling benefit
@@ -133,12 +135,12 @@ sequenceDiagram
 
 Producer sends a message and does not wait for processing or a reply.
 
-**Strengths:**
+**Pros:**
 
 - Lowest coupling and lowest producer latency
 - Simple to operate when loss is acceptable or retries happen elsewhere
 
-**Trade-offs:**
+**Cons:**
 
 - No confirmation that work completed
 - Failures are visible only through consumer metrics, DLQs, or downstream effects
@@ -162,23 +164,39 @@ Design implications:
 
 ## Delivery semantics
 
+Delivery semantics describe what the system guarantees when something fails mid-flight. They apply the same way to queues and to topics; for a topic, the guarantee holds per subscription rather than per event.
+
+The whole distinction comes down to **when the consumer acknowledges** relative to when it does the work. The network cannot tell a lost message from a lost acknowledgement, so you choose which error you prefer: losing messages, or seeing them twice.
+
+| Guarantee     | Ack timing        | Failure result   | Cost                                     |
+| ------------- | ----------------- | ---------------- | ---------------------------------------- |
+| At-most-once  | Before processing | Message lost     | Cheapest; no retry machinery             |
+| At-least-once | After processing  | Message repeated | Retries, redelivery, idempotent handlers |
+| Exactly-once  | Coordinated       | Neither          | Transactions or deduplication state      |
+
 ### At-most-once
 
-Deliver, then forget. A crash can lose the message.
+The consumer acknowledges on receipt and then processes. A crash between the two loses the message permanently, and nothing retries it.
 
-Use for metrics or other data that is cheap to drop.
+Use it when the data is cheap to drop and volume is high: metrics samples, non-critical telemetry, best-effort presence updates.
 
 ### At-least-once
 
-Deliver, wait for ack, retry on failure. Duplicates are possible.
+The consumer acknowledges only after the work is done (or durably recorded). If it crashes first, the broker redelivers, so the same message can be processed more than once.
 
-This is the default in production systems. Consumers must be idempotent.
+This is the default in essentially every production system, and the guarantee you should assume unless told otherwise. It shifts the correctness burden onto the consumer, which must be idempotent.
 
 ### Exactly-once
 
-Appear to process each message once, with no loss.
+Each message appears to be processed exactly once: no loss, no duplicate effect. Genuine end-to-end exactly-once delivery is not achievable across an unreliable network, because the acknowledgement itself can be lost.
 
-End-to-end exactly-once is expensive. In practice it is at-least-once delivery plus idempotent writes and deduplication keys.
+What systems actually provide is exactly-once *processing*, built from at-least-once delivery plus one of:
+
+- **Idempotent writes**: The duplicate produces the same final state (an upsert keyed by event ID, a conditional update on a version)
+- **Deduplication**: A store of processed message IDs consulted before the side effect
+- **Transactional coupling**: The broker offset and the state change commit together, which is what Kafka's transactional producer and consumer offsets give you, and only within that system's boundary
+
+The moment the side effect leaves that boundary (an email, a card charge, a third-party API call), you are back to at-least-once plus idempotency. Say that explicitly in an interview rather than claiming exactly-once.
 
 ## Reliability patterns
 
@@ -218,6 +236,26 @@ A message that can never succeed (invalid schema, missing required field, failed
 
 Handle by sending it to the DLQ quickly, not by retrying it on the same backoff path as timeouts.
 
+### Transactional outbox
+
+Everything above is consumer-side. The matching producer-side failure is the **dual write**: a service commits a row to its database and then publishes an event, and the two are not atomic. If the process dies between them, the database says the order exists and no consumer ever hears about it. Publishing first has the mirror problem: consumers react to an order that was never committed.
+
+The outbox pattern removes the second write from the critical path:
+
+1. In the same database transaction as the business change, insert the event into an `outbox` table
+2. A separate relay (a poller, or change-data-capture on the outbox table) reads unpublished rows and publishes them
+3. The relay marks rows as published after the broker acknowledges
+
+```mermaid
+graph LR
+    S[Service] -->|one transaction| DB[(Orders + outbox)]
+    DB --> R[Relay / CDC]
+    R --> B[Broker]
+    B --> C[Consumers]
+```
+
+The relay can crash after publishing but before marking a row, so it republishes: the outbox gives at-least-once publishing, not exactly-once. Consumers still need to be idempotent, which the event ID from the outbox row makes straightforward.
+
 ## Routing patterns
 
 ### Direct routing
@@ -254,22 +292,25 @@ graph TD
 
 ## Ordering, partitioning, and backpressure
 
-**Ordering**
+### Ordering
 
-- Global order across all messages is expensive and rarely needed
-- Per-key order (all events for `order_id=123` in sequence) is the usual requirement
-- Preserve per-key order with a partition or shard key, and a single consumer per partition
+- Global order across all messages requires a single writer and a single consumer, which throws away the parallelism you came for. It is expensive and rarely the actual requirement
+- Per-key order (all events for `order_id=123` in sequence) is what requirements usually mean, and it is affordable
+- Preserve per-key order with a partition or shard key, and exactly one active consumer per partition
+- Retries break order: a message sent to a DLQ or retried later arrives after messages that came behind it. If order must survive failures, pause the partition instead of skipping ahead
 
-**Partitioning**
+### Partitioning
 
-- Spread load across partitions for throughput
-- Choose a key with even distribution; a hot key creates a hot partition
+- Spread load across partitions for throughput; total consumer parallelism is capped by partition count
+- Choose a key with even distribution. A hot key (one large tenant, one popular product) creates a hot partition that no amount of scaling fixes
+- Partition count is hard to change after the fact, because rehashing moves keys and breaks per-key ordering during the transition
 
-**Backpressure**
+### Backpressure
 
-- Slow consumers create lag; unbounded queues hide the problem until memory or disk blows up
-- Bound queue depth, monitor lag, and apply load shedding or scale-out before the broker saturates
-- Prefetch/QoS limits how many unacked messages a consumer can hold
+- Slow consumers create lag; unbounded queues hide the problem until memory or disk runs out
+- Lag (messages behind, or age of the oldest unprocessed message) is the primary health metric; alert on its trend, not a single threshold, and see [Observability](./15-observability.md)
+- Bound queue depth, and apply load shedding or scale-out before the broker saturates
+- Prefetch or QoS limits how many unacked messages a consumer can hold, which stops one worker from claiming a batch it cannot finish
 
 ## Queues vs event streams
 
@@ -302,11 +343,12 @@ When choosing a pattern, answer:
 
 ## Interview talking points
 
-- Start from workload: job queue vs event fan-out vs request-reply.
-- State delivery semantics explicitly (usually at-least-once + idempotency).
-- Distinguish competing consumers (scale workers) from pub/sub (fan-out).
-- Mention DLQs, lag/backpressure, and per-key ordering via partitions.
-- Call out queue vs log/stream when the interviewer says "Kafka vs RabbitMQ/SQS."
+- Start from the workload: job queue, event fan-out, or request-reply.
+- State delivery semantics explicitly (usually at-least-once plus idempotency), and resist the claim of true exactly-once delivery.
+- Distinguish competing consumers (scaling workers) from pub/sub (fan-out to independent systems).
+- Mention DLQs, lag and backpressure, and per-key ordering via a partition key.
+- Raise the dual-write problem and the outbox pattern when a service both writes to a database and publishes an event.
+- Call out queue versus log/stream when the interviewer says "Kafka vs RabbitMQ/SQS."
 
 ## Reference materials
 

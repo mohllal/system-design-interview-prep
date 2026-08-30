@@ -4,10 +4,12 @@ concepts:
   - cryptographic-hashing
   - non-cryptographic-hashing
   - hash-distribution
+  - modulo-hashing
   - consistent-hashing
   - virtual-nodes
   - rendezvous-hashing
 related:
+  - fundamentals/11-caching.md
   - fundamentals/13-load-balancing.md
   - fundamentals/17-bloom-filters.md
   - fundamentals/18-checksums.md
@@ -16,69 +18,90 @@ related:
 
 # Hashing
 
-Hashing transforms input data into fixed-size values through mathematical functions.
+Hashing maps input data of any size to a fixed-size value using a deterministic function.
 
-In distributed systems, hashing is crucial for data distribution, load balancing, and consistent partitioning across multiple nodes.
+In distributed systems it is the default answer to "which node owns this key?" — for cache shards, load balancers, and database partitions.
 
-**Key Properties:**
+This note covers what makes a hash function good, the two families of hash functions, and the distribution schemes that survive nodes joining and leaving.
 
-- **Deterministic**: Same input always produces same output
-- **Uniform distribution**: Hash values spread evenly across output space
-- **Fixed output size**: Consistent hash length regardless of input size
-- **Avalanche effect**: Small input changes cause large output changes
+Related: [Caching](./11-caching.md), [Bloom Filters](./17-bloom-filters.md), [Checksums](./18-checksums.md), [Load Balancing](./13-load-balancing.md), [Database Partitioning](./24-database-partitioning.md).
+
+## What makes a hash function good?
+
+- **Deterministic**: The same input always produces the same output, on every node and every process restart.
+- **Uniform distribution**: Hash values spread evenly across the output space, so buckets fill at roughly the same rate.
+- **Fixed output size**: The output length is constant regardless of input size.
+- **Avalanche effect**: Flipping one input bit changes about half the output bits, so similar keys (`user_1`, `user_2`) land far apart.
+
+The last two properties are why you hash the key instead of using it directly: sequential or clustered keys become evenly scattered bucket assignments.
+
+## Three jobs hashing does
+
+The same primitive shows up in three different roles, and mixing them up is a common interview stumble. Each row answers a different question:
+
+| Job              | Question it answers                           | Typical functions                       | Covered in                             |
+| ---------------- | --------------------------------------------- | --------------------------------------- | -------------------------------------- |
+| **Distribution** | Which node or bucket owns key `K`?            | MurmurHash, xxHash, CityHash            | This note                              |
+| **Membership**   | Could key `K` exist at all?                   | Several cheap hashes over one bit array | [Bloom Filters](./17-bloom-filters.md) |
+| **Integrity**    | Did these bytes change in transit or at rest? | CRC32, SHA-256, HMAC                    | [Checksums](./18-checksums.md)         |
+
+Distribution wants speed and uniformity. Integrity wants collision resistance, and — if an attacker is in the threat model — a key. Membership trades a controlled error rate for memory. Picking a function only makes sense once you know which job you are doing.
 
 ## Cryptographic hash functions
 
-**Purpose**: Security, integrity verification, digital signatures
+**Purpose**: Security, integrity verification, digital signatures.
 
-| Algorithm   | Output Size | Security        | Use Cases                         |
-| ----------- | ----------- | --------------- | --------------------------------- |
-| **MD5**     | 128-bit     | Broken          | Legacy systems only               |
-| **SHA-1**   | 160-bit     | Deprecated      | Avoid for new systems             |
-| **SHA-256** | 256-bit     | Secure          | Digital signatures, blockchain    |
-| **SHA-3**   | Variable    | Latest standard | Modern cryptographic applications |
+These are designed so that finding two inputs with the same digest, or reversing a digest, is computationally infeasible. That guarantee costs CPU time.
+
+| Algorithm   | Output size | Security status | Use cases                                                 |
+| ----------- | ----------- | --------------- | --------------------------------------------------------- |
+| **MD5**     | 128-bit     | Broken          | Legacy checksums only, never security                     |
+| **SHA-1**   | 160-bit     | Deprecated      | Avoid for new systems                                     |
+| **SHA-256** | 256-bit     | Secure          | Digital signatures, content addressing, blockchain        |
+| **SHA-3**   | Variable    | Secure          | Modern applications, different internal design from SHA-2 |
+
+MD5 and SHA-1 are broken for *collision resistance*, which matters for signatures and deduplication. They are still occasionally used as fast non-security checksums, but there is no reason to pick them over a purpose-built non-cryptographic hash.
 
 ## Non-cryptographic hash functions
 
-**Purpose**: Fast hashing for data structures, load balancing
+**Purpose**: Fast hashing for hash tables, sharding, and load balancing.
 
-| Algorithm      | Speed          | Quality   | Use Cases                        |
-| -------------- | -------------- | --------- | -------------------------------- |
-| **MurmurHash** | Very Fast      | Good      | Hash tables, caches              |
-| **CityHash**   | Fast           | Good      | Google's general-purpose hashing |
-| **xxHash**     | Extremely Fast | Excellent | High-performance applications    |
+| Algorithm      | Speed          | Distribution quality | Use cases                          |
+| -------------- | -------------- | -------------------- | ---------------------------------- |
+| **MurmurHash** | Very fast      | Good                 | Hash tables, caches, Bloom filters |
+| **CityHash**   | Fast           | Good                 | Google's general-purpose hashing   |
+| **xxHash**     | Extremely fast | Excellent            | High-throughput pipelines          |
 
 **Trade-offs:**
 
 Pros:
 
-- Much faster than cryptographic hashes
-- Good distribution properties
+- Orders of magnitude faster than cryptographic hashes
+- Good distribution properties for real-world key shapes
 
 Cons:
 
-- Not secure against malicious attacks
-- Not suitable for security purposes
+- Not collision resistant against an adversary who chooses the inputs
+- Unsafe for signatures, tokens, or anything security-sensitive
+
+The adversarial case is not theoretical: a client that can pick keys can deliberately collide them and turn a hash table into a linked list. Server-side hash tables exposed to user input should use a seeded or randomized hash.
 
 ## Hash distribution and uniformity
 
-Good hash functions distribute values uniformly across the output space to minimize collisions and ensure balanced load distribution.
+A good hash function spreads values uniformly across the output space, which minimizes collisions and keeps load balanced across buckets.
 
-**Factors Affecting Distribution:**
+**Factors affecting distribution:**
 
-- **Input data patterns**: Real-world data often has patterns that can cause skew
-- **Hash function quality**: Poor functions create clustering
-- **Output space size**: Larger spaces reduce collision probability
+- **Input data patterns**: Real-world keys are rarely random. Timestamps, auto-increment IDs, and shared prefixes all cluster.
+- **Hash function quality**: Weak functions preserve input structure and create clustering.
+- **Output space size**: More buckets means fewer collisions, but also more per-bucket overhead.
+- **Key skew**: Even a perfect hash function cannot fix a key that is genuinely hot. If one celebrity account is 30% of traffic, hashing sends 30% of traffic to one node. That is a key-design problem, not a hash-function problem.
 
-## Distributed hashing techniques
+## Distributed hashing
 
-Hashing in distributed systems requires special considerations for node changes and data rebalancing.
+Assigning keys to nodes is easy until the set of nodes changes. These schemes differ in how much data moves when it does.
 
-## Consistent hashing
-
-Consistent hashing solves the redistribution problem when nodes are added or removed from a distributed system.
-
-### Traditional hashing problems
+### Why modulo hashing breaks
 
 ```mermaid
 graph TD
@@ -88,20 +111,40 @@ graph TD
     D --> E[Most keys remapped<br/>Massive redistribution]
 ```
 
-**Problem**: When servers change, `hash(key) % server_count` changes for most keys, causing massive data movement.
+`hash(key) % N` is simple and perfectly uniform, but `N` appears in the formula. Change `N` from 4 to 5 and roughly 80% of keys map somewhere new.
 
-### Consistent hashing solution
+For a database that means a mass data migration. For a cache it is worse in a subtler way: nothing needs to *move*, but almost every key is suddenly looked up on a node that has never seen it, so the cluster takes a near-total miss storm and the origin absorbs it all at once.
+
+Modulo hashing is still the right choice when the node count is fixed, or when it only ever changes by splitting a bucket in half.
+
+### Consistent hashing
+
+Consistent hashing removes `N` from the mapping so that node changes affect only a slice of the keyspace.
+
+Both nodes and keys are hashed into the same circular space (typically `0 .. 2^32-1`). A key belongs to the first node found walking clockwise from the key's position:
+
+```plaintext
+hash space 0 .. 2^32-1, wrapping around at the end
+
+  0 ........ N1 ......... N2 ............... N3 ........ 2^32-1
+       ^           ^             ^
+    hash(a)     hash(b)       hash(c)
+       |           |             |
+       v           v             v
+      N1          N2            N3       (first node clockwise)
+```
+
+When `N2` leaves the ring, only the keys between `N1` and `N2` move — they now walk clockwise to `N3`. Every other key keeps its owner. Adding a node is the mirror image: it claims one arc from its clockwise neighbor and nothing else changes.
 
 **Benefits:**
 
-- Adding/removing nodes only affects adjacent keys
-- Minimal data redistribution (O(K/N) keys affected)
-- Maintains load balance with virtual nodes
+- Adding or removing a node only remaps the keys in the adjacent arc
+- Roughly `K/N` keys move per node change, where `K` is the total key count and `N` the node count
+- Load stays balanced as long as enough virtual nodes are used
 
-### Implementation details
+#### Virtual nodes
 
-**Virtual Nodes (Replicas)**
-To improve load distribution, each physical node is mapped to multiple positions on the ring.
+With one ring position per server, arcs are uneven by chance and removing a node dumps its entire arc on a single neighbor. The fix is to give each physical node many positions on the ring:
 
 ```mermaid
 graph TD
@@ -110,44 +153,48 @@ graph TD
     A --> D[Virtual Node A3<br/>Position: 250]
 ```
 
-**Example implementation:**
+Each physical node now owns many small arcs scattered around the ring, so arc sizes average out and a departing node's load is spread across all remaining nodes rather than one. Virtual nodes also make heterogeneous hardware easy: give a machine with twice the memory twice the ring positions.
+
+**Example implementation** (a handful of virtual nodes for readability — production systems use 100-200 per physical node):
 
 ```python
+import bisect
+
 class ConsistentHash:
-    def __init__(self, replicas=3):
-        self.replicas = replicas
+    def __init__(self, vnodes=3):
+        self.vnodes = vnodes
         self.ring = {}
         self.sorted_keys = []
-    
+
     def add_node(self, node):
-        for i in range(self.replicas):
+        for i in range(self.vnodes):
             key = self.hash(f"{node}:{i}")
             self.ring[key] = node
-            self.sorted_keys.append(key)
-        self.sorted_keys.sort()
-    
+            bisect.insort(self.sorted_keys, key)
+
     def remove_node(self, node):
-        for i in range(self.replicas):
+        for i in range(self.vnodes):
             key = self.hash(f"{node}:{i}")
             del self.ring[key]
             self.sorted_keys.remove(key)
-    
+
     def get_node(self, key):
         if not self.ring:
             return None
-        
+
         hash_key = self.hash(key)
-        # Find first node clockwise
-        for node_key in self.sorted_keys:
-            if node_key >= hash_key:
-                return self.ring[node_key]
-        # Wrap around to first node
-        return self.ring[self.sorted_keys[0]]
+        # First virtual node clockwise, wrapping to the start of the ring
+        idx = bisect.bisect_left(self.sorted_keys, hash_key)
+        if idx == len(self.sorted_keys):
+            idx = 0
+        return self.ring[self.sorted_keys[idx]]
 ```
 
-## Rendezvous hashing (HRW)
+Consistent hashing is what backs partitioning in Amazon DynamoDB and Apache Cassandra, and it is the standard way to shard a Memcached or Redis cache tier.
 
-Alternative approach where each node computes a weight for each key, and the highest weight wins.
+### Rendezvous hashing (HRW)
+
+Rendezvous hashing (highest random weight) reaches the same goal without a ring: hash the key together with each node, and the highest score wins.
 
 ```mermaid
 graph TD
@@ -164,62 +211,75 @@ graph TD
 def get_node_hrw(key, nodes):
     max_weight = -1
     selected_node = None
-    
+
     for node in nodes:
         # Combine key and node, then hash
         weight = hash(f"{key}:{node}")
         if weight > max_weight:
             max_weight = weight
             selected_node = node
-    
+
     return selected_node
 ```
 
-**Rendezvous vs Consistent Hashing:**
+Removing a node only changes the winner for keys where that node was ranked first, so redistribution is minimal for the same reason it is on a ring. Ranking the top `r` nodes instead of just the top one gives you replica placement for free.
 
-| Aspect           | Consistent Hashing             | Rendezvous Hashing                 |
+**Rendezvous vs consistent hashing:**
+
+| Aspect           | Consistent hashing             | Rendezvous hashing                 |
 | ---------------- | ------------------------------ | ---------------------------------- |
 | **Simplicity**   | More complex (ring management) | Simpler (direct calculation)       |
 | **Performance**  | O(log N) lookup                | O(N) calculation per lookup        |
-| **Load Balance** | Good (with virtual nodes)      | Excellent (mathematically uniform) |
-| **Node Changes** | Minimal redistribution         | Minimal redistribution             |
-| **Use Cases**    | Large-scale systems            | Smaller node counts                |
+| **Load balance** | Good (with virtual nodes)      | Excellent (mathematically uniform) |
+| **Node changes** | Minimal redistribution         | Minimal redistribution             |
+| **Use cases**    | Large-scale systems            | Smaller node counts                |
 
-## Performance considerations
+## Choosing a hash function
 
-### Hash function selection
+**For security:**
 
-**For Security:**
+- Use SHA-256 or SHA-3 for signatures, content addressing, and tamper-evident integrity
+- Avoid MD5 and SHA-1 in new applications
 
-- Use SHA-256 or SHA-3 for cryptographic needs
-- Avoid MD5 and SHA-1 for new applications
+**For performance:**
 
-**For Performance:**
+- Use MurmurHash3 or xxHash for hash tables, sharding, and Bloom filters
+- Consider CityHash for compatibility with existing Google-derived systems
 
-- Use MurmurHash3 or xxHash for non-cryptographic needs
-- Consider CityHash for Google-compatible systems
+**For distributed placement:**
 
-**For Distributed Systems:**
+- Modulo hashing when the node count is fixed or only grows by splitting
+- Consistent hashing for clusters that scale in and out, or where a node loss must not invalidate the whole cache tier
+- Rendezvous hashing for smaller, stable clusters, or when you need a ranked replica list
 
-- Consistent hashing for dynamic node environments
-- Rendezvous hashing for smaller, stable clusters
+## Common pitfalls
 
-### Common pitfalls
+**Poor hash distribution:**
 
-**Poor Hash Distribution:**
+- Sequential or prefixed keys create hotspots when the hash function is weak
+- Use a compound key or add a salt to break up naturally clustered keys
 
-- Using sequential keys can create hotspots
-- Consider adding randomness or using compound keys
+**Node imbalance:**
 
-**Node Imbalance:**
+- Use enough virtual nodes (100-200 per physical node is a common starting point)
+- Monitor per-node key counts and request rates, and adjust ring weights based on real load
 
-- Use sufficient virtual nodes (100-200 per physical node)
-- Monitor and adjust based on actual load patterns
+**Inconsistent hash configuration:**
 
-**Cascading Failures:**
+- Every client must use the same hash function, seed, and ring membership, or they will disagree about ownership
+- Changing the hash function or seed is equivalent to rebuilding the entire ring
 
-- Implement health checks and failover mechanisms
-- Use multiple hash rings for redundancy
+**Cascading failures:**
+
+- A node that drops out hands its keys to neighbors, which can push them over their own limits
+- Add health checks, failover, and enough headroom to absorb a neighbor's share
+
+## Interview talking points
+
+- Say which job you are hashing for — distribution, membership, or integrity — before naming an algorithm.
+- Reach for consistent hashing the moment nodes can join or leave, and mention virtual nodes in the same breath.
+- Be explicit that hashing fixes *uniform* key distribution, not *hot* keys; those need replication or a separate hot-key path.
+- Know the cost of a resharding event: with modulo hashing it is a full migration, with consistent hashing it is one arc.
 
 ## Reference materials
 

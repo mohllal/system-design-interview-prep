@@ -13,6 +13,7 @@ related:
   - fundamentals/16-hashing.md
   - fundamentals/22-database-indexes.md
   - fundamentals/23-database-replication.md
+  - fundamentals/25-database-concurrency-control.md
   - fundamentals/27-cap-and-pacelc-theorems.md
   - fundamentals/28-leader-election.md
 ---
@@ -22,7 +23,7 @@ related:
 Partitioning and replication solve different problems. Mixing them up is the usual design-interview miss.
 
 - **Partitioning** (sharding when each partition has its own servers) puts *different* rows on different nodes. That is how you scale **writes, storage, and working set**.
-- **Replication** puts the *same* rows on more than one node. That is how you survive a disk death, serve more **reads**, and choose an RPO.
+- **[Replication](./23-database-replication.md)** puts the *same* rows on more than one node. That is how you survive a disk death, serve more **reads**, and choose an RPO.
 
 A production database almost always does both:
 
@@ -36,6 +37,8 @@ A production database almost always does both:
      └─────────────────┘        └─────────────────┘        └─────────────────┘
         copies of A                copies of B                copies of C
 ```
+
+Read that as: sharding picks the **column**, replication fills the **box**. Each shard is a full replica set with its own primary, its own log, and its own failover, so everything in [replication](./23-database-replication.md) applies once per shard rather than once per cluster.
 
 ## What you are trying to keep together
 
@@ -51,12 +54,12 @@ If you cannot name the key, you are not ready to shard. "Shard by user_id" is a 
 
 **Two different splits people conflate:**
 
-| Approach                | Scope                                   | Wins                                                   | Cost                                                 |
-| ----------------------- | --------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------- |
-| In-database partitions* | Still one server, one WAL, one failover | Prune old data, cheaper vacuum, drop a day in one shot | —                                                    |
-| Shards                  | Separate servers, separate replica sets | Write and storage scale                                | Routing, no cross-shard FK, distributed transactions |
+| Split                  | Scope                                   | Wins                                                   | Cost                                                 |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------- |
+| In-database partitions | One server, one WAL, one failover       | Prune old data, cheaper vacuum, drop a day in one shot | No write or storage scale                            |
+| Shards                 | Separate servers, separate replica sets | Write and storage scale                                | Routing, no cross-shard FK, distributed transactions |
 
-*Postgres `PARTITION BY RANGE (day)`, MySQL partitions, etc.
+In-database partitioning (Postgres `PARTITION BY RANGE (day)`, MySQL partitions) is a **table layout** change: one node, one replica set, one failover. Sharding is a **topology** change: N replica sets, N of everything operational. Saying "we partitioned the table" when you mean "we sharded the fleet" hides all the hard parts.
 
 Vertical split (users DB vs payments DB) is a **service/table** cut, not a row-key cut. It scales teams and blast radius but it does not by itself scale a hot `orders` table.
 
@@ -107,7 +110,7 @@ targeted:  WHERE user_id = 42        → shard hash(42)
 scatter:   WHERE status = 'open'     → all shards, merge, p99 = worst shard
 ```
 
-## Secondary indexes, uniqueness, IDs
+## Secondary indexes
 
 Local secondary index: `orders(user_id, created_at)` on the shard that already holds that user. Cheap, partition-local.
 
@@ -129,6 +132,8 @@ If you need roughly-increasing IDs for range scans, put time in the high bits an
 
 A transaction that touches two shards is a distributed transaction ([2PC](../architecture/05-two-phase-commit.md)): extra RTTs, coordinator failure, more ways to be unsure.
 
+What it costs is isolation, not just latency. Each shard can be perfectly serializable on its own and the pair of them still be wrong, because no single node ever sees both halves of the transaction — cross-shard write skew is the standard example. See [concurrency control](./25-database-concurrency-control.md) for the anomalies themselves.
+
 Prefer:
 
 - Same partition key (colocate)
@@ -138,15 +143,16 @@ Prefer:
 
 Spanner/F1-style databases make cross-shard SQL *possible* with TrueTime and a lot of engineering. That is not "MySQL + hash user_id + 2PC on Friday."
 
-## Replication
+## Replication per shard
 
-Replicas are not extra write capacity on a single primary. Per shard they buy RPO, failover, laggy reads, and a box for backups/CDC.
+Each shard is a replica set, so the whole of [replication](./23-database-replication.md) — ack policy, RPO, lag, promotion, fencing — applies once per shard. Four consequences are specific to sharding:
 
-They do **not** fix a hot partition. Ten replicas of a celebrity key still serialize writes on one primary.
+- **Failover is per shard**: shard 7 can elect a new primary while shard 3 is untouched. A reported "cluster outage" is often one shard's replica set losing quorum, not every node.
+- **Replicas do not fix a hot partition**: ten replicas of a celebrity key still serialize its writes on that key's one primary. Copies buy reads and a promotion candidate, never write capacity.
+- **Lag is per shard too**: a scatter query reading replicas of ten shards is only as fresh as the laggiest one, and different shards can be at different points in time.
+- **Leaderless stores still partition**: Cassandra tokens and Dynamo partitions split the keyspace. Quorum `R`/`W` is about copies of one key, not about avoiding sharding.
 
-Failover is **per shard**. Shard 7 can elect a new primary while shard 3 is untouched. A "cluster outage" is often "one shard's replica set lost quorum," not every node.
-
-Leaderless stores still **partition** by key (Cassandra tokens, Dynamo partitions). Quorum `R/W` is per-key copies, not "no sharding."
+Operationally this is the cost people underestimate: `N` shards × `R` replicas is `N` replica sets to size, back up, page on, and fail over.
 
 ## Resharding without losing a shard
 
@@ -169,9 +175,9 @@ Start from working-set RAM, disk, and write QPS **per shard**, plus headroom for
 
 ## Schema and operations
 
-`N` shards × `R` replicas is `N` replica sets to backup, page on, and migrate. Rolling schema changes: expand-contract (add column nullable, backfill per shard, then switch app). There is no single lock across shards.
+There is no single lock, and no single transaction, across shards. Schema changes are rolling and expand-contract: add the column nullable everywhere, backfill shard by shard, switch the app, then drop the old column. A migration that must be atomic across all shards is a design smell, not a deploy problem.
 
-Measure **per shard**: QPS, CPU, disk, replication lag, row count.
+Measure **per shard**, never as a cluster average: QPS, CPU, disk, replication lag, row count. The average shard is healthy in almost every incident caused by one shard.
 
 ## What breaks when you shard
 
@@ -193,13 +199,13 @@ Skipping to (4) because "scale" was on the rubric is how you inherit scatter-gat
 
 ## Interview talking points
 
-- Name the **axis**: copies vs split. Replica set per shard.
+- Name the **axis**: replication is copies, partitioning is split. Replica set per shard.
 - Defend the **partition key** with a query and a transaction (colocation), not "hash user_id."
 - **Hot keys** vs too many shards.
 - Hash modulo vs split/consistent hashing for resharding.
-- Failover is per shard.
+- Failover, lag, and metrics are all **per shard**.
 - Resharding must stay replicated.
-- Sync vs async is RPO vs latency.
+- Cross-shard work costs **atomicity and isolation**, not just round trips — that is what colocation buys back.
 
 ## Reference materials
 

@@ -1,122 +1,194 @@
 ---
-title: "Pub/Sub (Publish/Subscribe)"
+title: "Pub/Sub"
 concepts:
   - publish-subscribe-model
-  - delivery-semantics
-  - idempotency
-  - message-ordering
-  - backpressure
-  - schema-evolution
-  - dead-letter-queues
+  - topics-and-subscriptions
+  - fan-out
+  - push-vs-pull-delivery
+  - retention-and-replay
+  - event-schema-design
+  - event-carried-state-transfer
 related:
   - fundamentals/31-messaging-patterns.md
   - fundamentals/06-communication-patterns.md
   - fundamentals/07-realtime-communication-patterns.md
   - fundamentals/09-reliability.md
+  - fundamentals/15-observability.md
   - advanced/05-kafka-architecture.md
 ---
 
-# Pub/Sub (Publish/Subscribe)
+# Pub/Sub
 
-Pub/Sub decouples message producers (publishers) from consumers (subscribers) through a broker/topic layer.
-
-Publishers send events to topics without knowing the subscribers. Subscribers receive only the topics they care about.
-
-For queues, request-reply, routing, and reliability patterns, see [Messaging Patterns](./31-messaging-patterns.md).
+Publish/subscribe decouples producers from consumers through a broker. A publisher writes an event to a **topic** without knowing who reads it; each interested consumer subscribes to that topic and receives its own copy. Adding a consumer requires no change to the publisher, which is the entire point of the pattern.
 
 ```mermaid
 graph TD
-    P1[Publisher] --> T[Topic: orders]
-    P2[Publisher] --> T
-    T --> S1[Order Service]
+    P1[Order Service] --> T[Topic: order.placed]
+    P2[Admin Tool] --> T
+    T --> S1[Inventory]
     T --> S2[Analytics]
-    T --> S3[Notification Service]
+    T --> S3[Notifications]
 ```
+
+This document covers the pub/sub model itself: topics and subscriptions, fan-out, delivery mode, retention, and event schema design. For queues, request-reply, routing, delivery semantics, and reliability patterns, see [Messaging Patterns](./31-messaging-patterns.md).
 
 ## Why use pub/sub
 
-- Loose coupling between services
-- Easy fan-out to multiple consumers
-- Asynchronous processing and better burst handling
-- Simple extension (add a new subscriber without changing the publisher)
+- **Loose coupling**: The publisher names an event, not a destination, so consumers change independently
+- **Fan-out**: One event drives many workflows without the publisher orchestrating them
+- **Extensibility**: A new consumer is a new subscription, not a producer deployment
+- **Burst absorption**: The broker buffers, so a spike in events does not have to become a spike in consumer load
+
+The cost is that no single call stack spans the flow. Debugging, tracing, and reasoning about end-to-end completion all get harder, and the publisher no longer learns whether anything downstream succeeded.
 
 ## Core components
 
-- **Publisher**: Sends messages/events to a topic
-- **Topic**: Named channel for routing
-- **Subscriber**: Consumes messages from subscribed topics
-- **Broker**: Routes, buffers, and delivers messages (Kafka, SNS/SQS, RabbitMQ exchanges, etc.)
+- **Publisher**: Writes an event to a topic. Fire-and-forget beyond the broker's write acknowledgement
+- **Topic**: Named channel that events are published to. The unit of routing and, usually, of schema
+- **Subscription**: A named consumer's view of a topic, with its own delivery position and acknowledgement state
+- **Subscriber**: The application that processes messages from a subscription
+- **Broker**: Stores, routes, and delivers messages (Kafka, Google Pub/Sub, SNS with SQS, NATS, RabbitMQ exchanges)
 
-## Typical use cases
+The component people skip is the **subscription**, and it is the one that explains the model. Fan-out happens per subscription, not per connected process.
 
-- Event-driven microservices (order created, payment completed)
-- Real-time analytics and audit pipelines
-- Notifications and activity feeds
-- Data replication/sync fan-out
+## Topics and subscriptions
 
-## Delivery semantics
+Each subscription gets every message published to the topic. Within a subscription, multiple consumer processes compete: each message goes to exactly one of them. So the same topic supports broadcast across teams and parallelism inside a team at the same time.
 
-### At-most-once
+```mermaid
+graph TD
+    T[Topic: order.placed] --> SUB1[Subscription: inventory]
+    T --> SUB2[Subscription: analytics]
+    SUB1 --> W1[Inventory worker 1]
+    SUB1 --> W2[Inventory worker 2]
+    SUB2 --> A1[Analytics worker]
+```
 
-- Message may be lost, no duplicates
-- Fastest, least reliable
-- Use for metrics/non-critical telemetry
+An `order.placed` event published once is delivered to the inventory subscription and the analytics subscription. Inventory runs two workers, so each event is handled by exactly one of them, not both.
 
-### At-least-once
+Different brokers name this differently, but the mechanism is the same:
 
-- Message delivered one or more times
-- Requires ack + retry
-- Most common in production systems
-- Consumers must be idempotent
+| Broker         | Topic           | Subscription              | Competing consumers within it |
+| -------------- | --------------- | ------------------------- | ----------------------------- |
+| Kafka          | Topic           | Consumer group            | One member per partition      |
+| Google Pub/Sub | Topic           | Subscription              | Any number of pullers         |
+| AWS SNS + SQS  | SNS topic       | One SQS queue per fan-out | Any number of queue consumers |
+| RabbitMQ       | Fanout exchange | Bound queue               | Competing consumers per queue |
 
-### Exactly-once
+Because each subscription tracks its own position and acknowledgements, subscriptions fail independently. A broken analytics consumer builds lag on its own subscription; it does not stall inventory, and it does not stop publishers.
 
-- Delivered once with no loss/duplication
-- Hard and expensive end-to-end
-- Usually achieved by combining at-least-once + idempotency + dedup keys
+## Push versus pull delivery
 
-## Idempotency (critical)
+Brokers deliver in one of two directions, and the choice determines who controls flow.
 
-Because duplicates happen, handlers should be safe to rerun.
+| Aspect         | Push (broker calls the consumer)           | Pull (consumer fetches from the broker)     |
+| -------------- | ------------------------------------------ | ------------------------------------------- |
+| Flow control   | Broker's problem; needs consumer feedback  | Consumer's problem; it fetches what it can  |
+| Consumer setup | Must expose a reachable endpoint           | Only needs outbound connectivity            |
+| Latency        | Lowest; delivered as produced              | Bounded by fetch interval or long poll      |
+| Batching       | Harder; often one message per call         | Natural; fetch many messages per round trip |
+| Examples       | SNS to HTTP, webhooks, Google Pub/Sub push | Kafka, SQS, Google Pub/Sub pull             |
 
-Common patterns:
+Pull is the safer default for high-throughput internal consumers, because backpressure is automatic: a saturated consumer simply stops fetching and lag becomes visible. Push suits low-volume delivery to endpoints you do not control, which is what a webhook is.
 
-- Idempotency keys per business action
-- Conditional updates (`WHERE version = ...`)
-- State checks before side effects
+## Delivery guarantees
 
-For example, a payment event `pay_123` processed twice should result in only one charge.
+Delivery semantics (at-most-once, at-least-once, exactly-once) are the same for topics as for queues, and are covered in [Messaging Patterns](./31-messaging-patterns.md#delivery-semantics). Assume **at-least-once** unless you have deliberately configured otherwise, and make consumers idempotent.
 
-## Pub/Sub vs message queue
+Two things are specific to pub/sub:
 
-- **Pub/Sub**: One event, many subscribers (broadcast/fan-out)
-- **Queue**: One message, one consumer (work distribution)
+- **Guarantees are per subscription.** The same event can be acknowledged by analytics and redelivered to inventory. "Delivered" is never a property of the event, only of an event-subscription pair.
+- **Fan-out multiplies duplicates.** With N subscriptions, one publish can produce N sets of retries. Every consumer needs its own deduplication, and side effects that must happen once globally (charging a card, sending an email) must live behind exactly one subscription.
 
-Use pub/sub when multiple systems must react to the same event.
-Use queues when tasks should be processed once by one worker.
+Ordering is likewise a per-partition, per-subscription property. Global order across a topic is not something brokers give you at scale; per-key order via a partition key is, and that is almost always what the requirement actually is. See [Messaging Patterns](./31-messaging-patterns.md#ordering) for the mechanics.
 
-## Common challenges
+## Retention and replay
 
-- **Ordering**: Hard to guarantee global order across partitions
-- **Backpressure**: Slow consumers can lag or overload the broker
-- **Debugging**: Asynchronous flows need strong tracing/logging
-- **Schema evolution**: Event contracts must be managed carefully
+A queue holds a message until it is acknowledged. A log-based topic keeps events for a retention window regardless of who has read them, which unlocks capabilities queues do not have:
 
-## Design guidelines
+- **Replay**: Reset a subscription's position to reprocess history after a consumer bug or a schema fix
+- **Bootstrap**: A new subscriber can read from the beginning instead of needing a separate backfill pipeline
+- **Independent recovery**: A consumer that was down for hours catches up from where it stopped
 
-- Define clear event schemas and versioning
-- Include correlation IDs for traceability
-- Set retention and replay policies intentionally
-- Monitor consumer lag and dead-letter queues
-- Design consumers for retries and poison-message handling
+Decisions to make deliberately:
+
+- **Retention window**: Long enough to survive a weekend outage and to bootstrap a new consumer, short enough to control storage cost
+- **Replay safety**: Replay re-triggers side effects. Consumers that send emails or move money need a guard, such as a processed-event table or an effective date check
+- **Starting position**: New subscriptions read from the earliest or latest offset. Getting this wrong either floods a new consumer or silently skips events
+
+For how a partitioned commit log implements this, see [Kafka Architecture](../advanced/05-kafka-architecture.md).
+
+## Event schema design
+
+The topic's schema is the contract between teams, and it outlives any individual service. It deserves more design attention than the broker choice.
+
+A workable event envelope separates metadata from payload:
+
+```json
+{
+  "eventId": "evt_01H8X...",
+  "eventType": "order.placed",
+  "eventVersion": 1,
+  "occurredAt": "2026-01-15T10:32:04Z",
+  "correlationId": "req_9f2c...",
+  "data": {
+    "orderId": "ord_123",
+    "customerId": "cus_456",
+    "totalCents": 4200,
+    "currency": "USD"
+  }
+}
+```
+
+- `eventId` gives consumers a natural deduplication key
+- `eventType` and `eventVersion` let a consumer route and reject what it does not understand
+- `occurredAt` is when the fact happened, which is not when the message was delivered
+- `correlationId` is what makes an asynchronous flow traceable end to end
+
+Design guidelines:
+
+- **Name events as facts in the past tense** (`order.placed`, `payment.settled`). An event that reads like an instruction (`send.email`) is a command aimed at one consumer, and belongs on a queue
+- **Evolve additively**: New optional fields are safe; removing or renaming a field, or narrowing a type, is a new version. Consumers must ignore unknown fields for this to hold
+- **Version explicitly** and publish both versions during a migration, since you cannot redeploy every consumer at once
+- **Enforce schemas at publish time** with a registry or shared definitions, rather than discovering breakage in a consumer at 3am
+
+### Thin versus fat events
+
+How much state to put in the event is the recurring design argument:
+
+- **Thin event (notification)**: Carries identifiers only, and the consumer calls back to fetch details. Keeps payloads small and the data authoritative, but reintroduces a synchronous dependency on the publisher and can produce a read storm on fan-out.
+- **Fat event (event-carried state transfer)**: Carries the state the consumer needs. Consumers stay independent and can process history offline, at the cost of larger payloads, duplicated state, and a wider contract to maintain.
+
+A practical middle ground is to carry the fields that consumers demonstrably need plus the identifiers to fetch the rest, and to remember that a thin event's callback may return state that has already moved on since the event was published.
+
+## Pub/Sub versus queues
+
+| Aspect            | Pub/Sub (topic)                      | Queue                                |
+| ----------------- | ------------------------------------ | ------------------------------------ |
+| Delivery          | Every subscription gets a copy       | One consumer gets each message       |
+| Semantics         | A fact that happened                 | A unit of work to perform            |
+| Producer intent   | Announce; does not know the audience | Dispatch; knows work must be done    |
+| Adding a consumer | New subscription, no producer change | Splits the existing work, not a copy |
+
+Use pub/sub when several systems must react to the same fact. Use a queue when a task should be performed once by one worker. The two compose naturally: a topic fans out to per-consumer queues, each of which is then a normal work queue. See [Messaging Patterns](./31-messaging-patterns.md) for the queue side and the queue-versus-stream comparison.
+
+## Common pitfalls
+
+- **Using a topic as a command channel**: Publishing `send.welcome.email` and letting exactly one service subscribe is a queue wearing a topic's clothes. It breaks the moment a second subscriber appears
+- **Unbounded fan-out**: Every new subscription multiplies broker load and duplicate handling; subscriptions need the same review a new API client would get
+- **Ignoring consumer lag**: Lag is the primary health signal for a subscription, and it is invisible unless you alert on it
+- **No dead-letter path**: Without one, a poison message either blocks the subscription or is silently dropped
+- **Untraceable flows**: Without a correlation ID propagated through every hop, an asynchronous failure is nearly impossible to reconstruct; see [Observability](./15-observability.md)
 
 ## Interview talking points
 
-- Pub/sub is for decoupling and fan-out, not point-to-point task routing.
-- State delivery semantics explicitly (usually at-least-once + idempotency).
-- Mention ordering, lag, replay, and failure handling.
-- Distinguish pub/sub from simple job queues.
+- Pub/sub is for decoupling and fan-out; point-to-point task routing is a queue. Say which one the requirement is.
+- Explain fan-out through subscriptions: broadcast across subscriptions, competing consumers within one.
+- State delivery semantics explicitly (at-least-once plus idempotent consumers) and note that guarantees are per subscription.
+- Mention retention and replay as the capability that separates a log-based topic from a queue.
+- Treat the event schema as a public contract: envelope, versioning, additive evolution.
 
 ## Reference materials
 
-- [Enterprise Integration Patterns - Publish-Subscribe Channel](https://www.enterpriseintegrationpatterns.com/patterns/messaging/PublishSubscribeChannel.html)
+- [Enterprise Integration Patterns - Publish-subscribe channel](https://www.enterpriseintegrationpatterns.com/patterns/messaging/PublishSubscribeChannel.html)
+- [Martin Fowler - What do you mean by "event-driven"?](https://martinfowler.com/articles/201701-event-driven.html)

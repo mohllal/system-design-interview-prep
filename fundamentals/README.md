@@ -45,10 +45,12 @@ Database concepts and data management strategies.
 | [Hashing](./16-hashing.md)                                               | Consistent hashing, partitioning strategies                  |
 | [Bloom Filters](./17-bloom-filters.md)                                   | Membership checks, false positives                           |
 | [Checksums](./18-checksums.md)                                           | Data integrity, hash verification, error detection           |
-| [Relational Databases](./19-relational-databases.md)                     | ACID properties, SQL optimization, indexing                  |
-| [Non-Relational Databases](./20-non-relational-databases.md)             | NoSQL types, CAP theorem trade-offs                          |
-| [Database Replication](./21-database-replication.md)                     | Master-slave, master-master patterns                         |
-| [Database Sharding](./22-database-sharding.md)                           | Horizontal partitioning, shard key selection                 |
+| [Relational Databases](./19-relational-databases.md)                     | Tables, keys, ACID/WAL, normalize vs denormalize             |
+| [Non-Relational Databases](./20-non-relational-databases.md)             | Access paths, store types, embedding, atomicity scope        |
+| [SQL vs NoSQL](./34-sql-vs-nosql.md)                                     | Access path, transaction scope, hybrids, common myths        |
+| [Database Indexes](./33-database-indexes.md)                             | B+tree, hash, bitmap, LSM, GIN, composite/covering           |
+| [Database Replication](./21-database-replication.md)                     | Ack policy, failover/fencing, replica lag, quorums           |
+| [Database Partitioning](./22-database-partitioning.md) | Split vs copy, shard keys, replica sets per shard      |
 | [Database Concurrency Control](./23-database-concurrency-control.md)     | Isolation levels, anomalies, locking strategies              |
 
 ### Distributed Systems
@@ -73,4 +75,4 @@ Estimation and performance analysis techniques.
 
 ---
 
-For deeper dives into authentication, multi-region replication, MapReduce, P2P networks, and Kafka as a distributed-systems case study, see [Advanced Topics](../advanced/README.md).
+For deeper dives into authentication, multi-region replication, MapReduce, P2P networks, Kafka, and PostgreSQL as a database-internals case study, see [Advanced Topics](../advanced/README.md).

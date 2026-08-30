@@ -10,6 +10,8 @@ In-depth topics that build on [fundamentals](../fundamentals/README.md). These a
 | [Multi-Region Replication](./02-multi-region-replication.md)               | Global deployment, replication topologies, consistency    |
 | [MapReduce](./03-mapreduce.md)                                             | Distributed batch processing, map/shuffle/reduce          |
 | [Peer-to-Peer Networks](./04-peer-to-peer-networks.md)                     | Decentralized architectures, DHT, NAT traversal           |
+| [Kafka Architecture](./05-kafka-architecture.md)                           | Distributed log, partitioning, ISR, consumers as a case study |
+| [PostgreSQL Internals](./06-postgresql-internals.md)                       | Pages, heap, MVCC, WAL, planner as a database internals case study |
 
 ---
 

@@ -123,7 +123,7 @@ A typical service:
 | Orders, payments, users   | Postgres                            | Transactions, constraints, many query shapes |
 | Session, rate limit, lock | Redis                               | TTL, speed, not the ledger                   |
 | Product search            | Elasticsearch / OpenSearch          | Inverted text index                          |
-| Images, videos            | Object storage + [CDN](./32-cdn.md) | Size, not rows                               |
+| Images, videos            | Object storage + [CDN](./34-cdn.md) | Size, not rows                               |
 | High-rate device events   | Cassandra / TSDB                    | Partition `(device, time)`, cheap append     |
 
 The relational database stays the **source of truth** for money and identity while other stores are derived, cached, or specialized.

@@ -32,7 +32,7 @@ Essential building blocks for understanding distributed systems and scalable arc
 - [REST API](./fundamentals/05-rest-api.md) - Resource modeling, HTTP semantics, versioning
 - [Communication Patterns](./fundamentals/06-communication-patterns.md) - REST, RPC, GraphQL, messaging
 - [Real-Time Communication](./fundamentals/07-realtime-communication-patterns.md) - Short/long polling, SSE, WebSockets
-- [Messaging Patterns](./fundamentals/29-messaging-patterns.md) - Queues, pub/sub, request-reply, delivery semantics
+- [Messaging Patterns](./fundamentals/31-messaging-patterns.md) - Queues, pub/sub, request-reply, delivery semantics
 
 ### Reliability & Performance
 
@@ -41,11 +41,11 @@ Essential building blocks for understanding distributed systems and scalable arc
 - [Scalability](./fundamentals/10-scalability.md) - Scale-up/out, bottlenecks, scaling patterns
 - [Caching](./fundamentals/11-caching.md) - Cache strategies, levels, invalidation patterns
 - [Proxies](./fundamentals/12-proxies.md) - Forward/reverse proxies, load balancers, CDNs
-- [CDN](./fundamentals/32-cdn.md) - Edge caches, origin protection, cache keys, global routing
+- [CDN](./fundamentals/34-cdn.md) - Edge caches, origin protection, cache keys, global routing
 - [Load Balancing](./fundamentals/13-load-balancing.md) - Distribution algorithms, health checks
 - [Resilience](./fundamentals/14-resilience.md) - Failure isolation, graceful degradation, recovery
 - [Observability](./fundamentals/15-observability.md) - Metrics, logs, traces, alerts, telemetry design
-- [Concurrency Control](./fundamentals/24-concurrency-control.md) - Threads, locks, semaphores, deadlocks
+- [Concurrency Control](./fundamentals/26-concurrency-control.md) - Threads, locks, semaphores, deadlocks
 
 ### Data & Storage
 
@@ -54,23 +54,23 @@ Essential building blocks for understanding distributed systems and scalable arc
 - [Checksums](./fundamentals/18-checksums.md) - Data integrity, hash verification, error detection
 - [Relational Databases](./fundamentals/19-relational-databases.md) - Tables, keys, ACID/WAL, normalize vs denormalize
 - [Non-Relational Databases](./fundamentals/20-non-relational-databases.md) - Access paths, store types, embedding, atomicity scope
-- [SQL vs NoSQL](./fundamentals/34-sql-vs-nosql.md) - Access path, transaction scope, hybrids, common myths
-- [Database Indexes](./fundamentals/33-database-indexes.md) - B+tree, hash, bitmap, LSM, GIN, composite/covering
-- [Database Replication](./fundamentals/21-database-replication.md) - Ack policy, failover/fencing, replica lag, quorums
-- [Database Partitioning](./fundamentals/22-database-partitioning.md) - Split vs copy, shard keys, replica sets per shard
-- [Database Concurrency Control](./fundamentals/23-database-concurrency-control.md) - Isolation levels, anomalies, locking strategies
+- [SQL vs NoSQL](./fundamentals/21-sql-vs-nosql.md) - Access path, transaction scope, hybrids, common myths
+- [Database Indexes](./fundamentals/22-database-indexes.md) - B+tree, hash, bitmap, LSM, GIN, composite/covering
+- [Database Replication](./fundamentals/23-database-replication.md) - Ack policy, failover/fencing, replica lag, quorums
+- [Database Partitioning](./fundamentals/24-database-partitioning.md) - Split vs copy, shard keys, replica sets per shard
+- [Database Concurrency Control](./fundamentals/25-database-concurrency-control.md) - Isolation levels, anomalies, locking strategies
 
 ### Distributed Systems
 
-- [CAP and PACELC Theorems](./fundamentals/25-cap-and-pacelc-theorems.md) - Distributed systems constraints
-- [Leader Election](./fundamentals/26-leader-election.md) - Leader-follower pattern, failover, leases
-- [Consensus](./fundamentals/27-consensus.md) - Quorum, Raft vs Paxos, consistency guarantees
-- [Pub/Sub](./fundamentals/28-pub-sub.md) - Messaging patterns, event-driven architectures
-- [Rate Limiting](./fundamentals/30-rate-limiting.md) - Algorithms, distributed limits, client retries
+- [CAP and PACELC Theorems](./fundamentals/27-cap-and-pacelc-theorems.md) - Distributed systems constraints
+- [Leader Election](./fundamentals/28-leader-election.md) - Leader-follower pattern, failover, leases
+- [Consensus](./fundamentals/29-consensus.md) - Quorum, Raft vs Paxos, consistency guarantees
+- [Pub/Sub](./fundamentals/30-pub-sub.md) - Messaging patterns, event-driven architectures
+- [Rate Limiting](./fundamentals/32-rate-limiting.md) - Algorithms, distributed limits, client retries
 
 ### Capacity Planning
 
-- [Back-of-the-Envelope Calculations](./fundamentals/31-back-of-the-envelope-calculations.md) - Estimation techniques, performance numbers
+- [Back-of-the-Envelope Calculations](./fundamentals/33-back-of-the-envelope-calculations.md) - Estimation techniques, performance numbers
 
 ## 🔬 Advanced Topics
 

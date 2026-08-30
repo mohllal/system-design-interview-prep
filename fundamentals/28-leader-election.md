@@ -104,7 +104,7 @@ sequenceDiagram
 
 Leader election decides *who leads*. Consensus decides *what value/state the cluster accepts*.
 
-See [Consensus](./27-consensus.md) for the agreement protocol side.
+See [Consensus](./29-consensus.md) for the agreement protocol side.
 
 ## Reference Materials
 

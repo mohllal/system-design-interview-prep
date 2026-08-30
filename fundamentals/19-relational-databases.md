@@ -107,7 +107,7 @@ Concurrent transactions should not trample each other.
 
 How much they can see of each other is the **isolation level**.
 
-That is a long topic of its own: dirty reads, phantoms, write skew, locks vs MVCC, see [Database Concurrency Control](./23-database-concurrency-control.md).
+That is a long topic of its own: dirty reads, phantoms, write skew, locks vs MVCC, see [Database Concurrency Control](./25-database-concurrency-control.md).
 
 ### Durability
 
@@ -268,7 +268,7 @@ SQL is declarative so the **planner** picks an access path.
 Typical choices:
 
 - Sequential scan of the heap
-- Index lookup or range scan, see [Indexes](./33-database-indexes.md)
+- Index lookup or range scan, see [Indexes](./22-database-indexes.md)
 - Nested loop / hash / merge join
 - Sort and aggregate
 

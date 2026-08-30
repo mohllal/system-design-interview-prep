@@ -8,7 +8,7 @@ You get cheaper reads when the predicate matches the index.
 
 This note is the types, how they are implemented, and when the planner will refuse to use them.
 
-Related: [Relational Databases](./19-relational-databases.md), [Partitioning](./22-database-partitioning.md), [Bloom Filters](./17-bloom-filters.md), [PostgreSQL Internals](../advanced/06-postgresql-internals.md).
+Related: [Relational Databases](./19-relational-databases.md), [Partitioning](./24-database-partitioning.md), [Bloom Filters](./17-bloom-filters.md), [PostgreSQL Internals](../advanced/06-postgresql-internals.md).
 
 ## What Problem It Solves
 

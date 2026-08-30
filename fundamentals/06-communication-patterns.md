@@ -91,7 +91,7 @@ Server pushes updates as events happen (for example, WebSockets, SSE, gRPC strea
 
 ## Asynchronous Messaging Patterns
 
-For channel types, delivery semantics, routing, and queue vs stream trade-offs, see [Messaging Patterns](./29-messaging-patterns.md).
+For channel types, delivery semantics, routing, and queue vs stream trade-offs, see [Messaging Patterns](./31-messaging-patterns.md).
 
 ### Message Queues (Point-to-Point)
 

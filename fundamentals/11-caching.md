@@ -21,7 +21,7 @@ Poor fit:
 ## Cache Levels
 
 - **Client cache**: Fastest for static assets, limited control
-- **CDN/edge cache**: Global read acceleration ([CDN](./32-cdn.md))
+- **CDN/edge cache**: Global read acceleration ([CDN](./34-cdn.md))
 - **Application cache**: Redis/Memcached for hot keys
 - **Database cache/buffer pool**: Engine-level page caching
 

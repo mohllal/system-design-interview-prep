@@ -2,7 +2,7 @@
 
 Multi-region replication copies and serves data across geographically separated regions.
 
-It extends [database replication](../fundamentals/21-database-replication.md) with cross-continent latency, partition risk, and global traffic routing concerns.
+It extends [database replication](../fundamentals/23-database-replication.md) with cross-continent latency, partition risk, and global traffic routing concerns.
 
 **Primary goals:**
 

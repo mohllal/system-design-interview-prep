@@ -96,7 +96,7 @@ Use this when local writes are a product requirement and you can state the merge
 
 The client (or coordinator) writes to several nodes and waits for **W** acks while reads wait for **R**.
 
-If `R + W > N`, a read quorum overlaps the last write quorum, so you can see the latest value *if you also pick the newest version among the responses*. Overlap alone is not enough — see [consensus](./27-consensus.md).
+If `R + W > N`, a read quorum overlaps the last write quorum, so you can see the latest value *if you also pick the newest version among the responses*. Overlap alone is not enough — see [consensus](./29-consensus.md).
 
 ```plaintext
 N = 3 replicas of the same key

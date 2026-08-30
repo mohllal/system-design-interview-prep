@@ -18,7 +18,7 @@ LSM engines (RocksDB, Cassandra) write immutable files and compact later.
 The questions stay the same.
 The answers move.
 
-Related: [Relational Databases](../fundamentals/19-relational-databases.md), [Indexes](../fundamentals/33-database-indexes.md), [Concurrency Control](../fundamentals/23-database-concurrency-control.md), [Replication](../fundamentals/21-database-replication.md).
+Related: [Relational Databases](../fundamentals/19-relational-databases.md), [Indexes](../fundamentals/22-database-indexes.md), [Concurrency Control](../fundamentals/25-database-concurrency-control.md), [Replication](../fundamentals/23-database-replication.md).
 
 ## The Stack
 
@@ -172,7 +172,7 @@ That defends against a torn page (4KB OS write, 8KB Postgres page).
 You pay extra WAL for safety.
 
 Physical replication is shipping this WAL to another node.
-See [replication](../fundamentals/21-database-replication.md).
+See [replication](../fundamentals/23-database-replication.md).
 
 **Elsewhere:** redo log (InnoDB), binlog (MySQL logical, different job), RocksDB WAL.
 The invariant is: **log is the source of truth for crash recovery**.
@@ -226,7 +226,7 @@ Isolation:
 - **Repeatable Read**: one snapshot for the transaction.
 - **Serializable**: snapshot plus SSI (detect write skew, abort one transaction).
 
-Anomalies and when to lock: [concurrency control](../fundamentals/23-database-concurrency-control.md).
+Anomalies and when to lock: [concurrency control](../fundamentals/25-database-concurrency-control.md).
 
 ## VACUUM
 
@@ -252,7 +252,7 @@ If you do not run it, you buy space and latency with interest.
 
 ## Indexes (Postgres-Specific)
 
-Generic btree / hash / bitmap / LSM: [database indexes](../fundamentals/33-database-indexes.md).
+Generic btree / hash / bitmap / LSM: [database indexes](../fundamentals/22-database-indexes.md).
 
 Postgres defaults:
 
@@ -343,7 +343,7 @@ You can read a row another transaction is updating (you see the old version).
 You cannot take `FOR UPDATE` on it until they commit or abort.
 
 **Elsewhere:** lock vs version is the pessimistic vs MVCC split.
-See [concurrency control](../fundamentals/23-database-concurrency-control.md).
+See [concurrency control](../fundamentals/25-database-concurrency-control.md).
 
 ## Pattern Catalog
 

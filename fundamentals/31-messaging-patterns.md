@@ -4,7 +4,7 @@ Messaging lets services communicate asynchronously through a broker, so producer
 
 The goal of this document is not to pick a single broker, but to choose the right channel, routing, and delivery semantics for latency, scale, and failure handling.
 
-For the broader sync vs async choice, see [Communication Patterns](./06-communication-patterns.md). For fan-out specifically, see [Pub/Sub](./28-pub-sub.md).
+For the broader sync vs async choice, see [Communication Patterns](./06-communication-patterns.md). For fan-out specifically, see [Pub/Sub](./30-pub-sub.md).
 
 ## Why Messaging
 
@@ -81,7 +81,7 @@ graph TD
 - Harder end-to-end tracing and debugging
 - Requires idempotent consumers and schema discipline
 
-**Best fit:** Event-driven architectures, analytics fan-out, integrations. See [Pub/Sub](./28-pub-sub.md).
+**Best fit:** Event-driven architectures, analytics fan-out, integrations. See [Pub/Sub](./30-pub-sub.md).
 
 ### Request-Reply
 

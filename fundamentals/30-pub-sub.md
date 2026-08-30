@@ -4,7 +4,7 @@ Pub/Sub decouples message producers (publishers) from consumers (subscribers) th
 
 Publishers send events to topics without knowing subscribers. Subscribers receive only topics they care about.
 
-For queues, request-reply, routing, and reliability patterns, see [Messaging Patterns](./29-messaging-patterns.md).
+For queues, request-reply, routing, and reliability patterns, see [Messaging Patterns](./31-messaging-patterns.md).
 
 ```mermaid
 graph TD

@@ -462,7 +462,7 @@ Catches bursts without a network round trip, then settles to the real cap. Same 
 - **Shadow mode:** log "would have 429'd" before enforcing. You will discover bot traffic, NAT collisions, and mis-sized limits without a launch incident.
 - **Headers on success, not only on 429:** `Remaining` lets well-behaved clients slow down *before* they fail.
 - **Auth order:** if you rate-limit by user, you must authenticate first — but you still need an IP limit *before* auth so login cannot be brute-forced for free.
-- **Cache and 429:** do not cache 429s the same way as 200s at a shared [CDN](./32-cdn.md) unless the cache key includes the identity. A cached 429 for user A must not be served to user B.
+- **Cache and 429:** do not cache 429s the same way as 200s at a shared [CDN](./34-cdn.md) unless the cache key includes the identity. A cached 429 for user A must not be served to user B.
 - **Idempotent reads vs costly writes:** tighter limits on `POST /search` or `POST /export` than on `GET /item/:id`.
 - **Human vs machine:** interactive UIs want small bursts (token bucket). Batch jobs should be given a separate key and a leaky-bucket or queued path, not compete with the UI budget.
 - **Observability:** alert on 429 ratio, limiter store latency, and "limit too low" tickets. A spike in 429s can be an attack, a bad client deploy, or an undersized limit after a launch.

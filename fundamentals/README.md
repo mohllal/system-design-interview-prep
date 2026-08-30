@@ -17,7 +17,7 @@ Core concepts for how systems communicate and exchange data.
 | [REST API](./05-rest-api.md)                                       | Resource modeling, HTTP semantics, versioning                     |
 | [Communication Patterns](./06-communication-patterns.md)           | REST, RPC, GraphQL, polling, streaming, messaging                 |
 | [Real-Time Communication](./07-realtime-communication-patterns.md) | Short/long polling, SSE, WebSockets, live update trade-offs       |
-| [Messaging Patterns](./29-messaging-patterns.md)                   | Queues, pub/sub, request-reply, delivery semantics, routing       |
+| [Messaging Patterns](./31-messaging-patterns.md)                   | Queues, pub/sub, request-reply, delivery semantics, routing       |
 
 ### Reliability & Performance
 
@@ -30,11 +30,11 @@ Strategies for building resilient and performant systems.
 | [Scalability](./10-scalability.md)                                   | Scale-up/out, bottlenecks, scaling patterns        |
 | [Caching](./11-caching.md)                                           | Cache levels and strategies, invalidation patterns |
 | [Proxies](./12-proxies.md)                                           | Forward/reverse proxies, CDNs, load balancers      |
-| [CDN](./32-cdn.md)                                                   | Edge caches, cache keys, origin protection, routing |
+| [CDN](./34-cdn.md)                                                   | Edge caches, cache keys, origin protection, routing |
 | [Load Balancing](./13-load-balancing.md)                             | Load balancing algorithms, health checks, failover |
 | [Resilience](./14-resilience.md)                                     | Failure isolation, degradation, recovery           |
 | [Observability](./15-observability.md)                               | Metrics, logs, traces, alerts, telemetry design    |
-| [Concurrency Control](./24-concurrency-control.md)                   | Threads, locks, semaphores, deadlocks              |
+| [Concurrency Control](./26-concurrency-control.md)                   | Threads, locks, semaphores, deadlocks              |
 
 ### Data & Storage
 
@@ -47,11 +47,11 @@ Database concepts and data management strategies.
 | [Checksums](./18-checksums.md)                                           | Data integrity, hash verification, error detection           |
 | [Relational Databases](./19-relational-databases.md)                     | Tables, keys, ACID/WAL, normalize vs denormalize             |
 | [Non-Relational Databases](./20-non-relational-databases.md)             | Access paths, store types, embedding, atomicity scope        |
-| [SQL vs NoSQL](./34-sql-vs-nosql.md)                                     | Access path, transaction scope, hybrids, common myths        |
-| [Database Indexes](./33-database-indexes.md)                             | B+tree, hash, bitmap, LSM, GIN, composite/covering           |
-| [Database Replication](./21-database-replication.md)                     | Ack policy, failover/fencing, replica lag, quorums           |
-| [Database Partitioning](./22-database-partitioning.md) | Split vs copy, shard keys, replica sets per shard      |
-| [Database Concurrency Control](./23-database-concurrency-control.md)     | Isolation levels, anomalies, locking strategies              |
+| [SQL vs NoSQL](./21-sql-vs-nosql.md)                                     | Access path, transaction scope, hybrids, common myths        |
+| [Database Indexes](./22-database-indexes.md)                             | B+tree, hash, bitmap, LSM, GIN, composite/covering           |
+| [Database Replication](./23-database-replication.md)                     | Ack policy, failover/fencing, replica lag, quorums           |
+| [Database Partitioning](./24-database-partitioning.md) | Split vs copy, shard keys, replica sets per shard      |
+| [Database Concurrency Control](./25-database-concurrency-control.md)     | Isolation levels, anomalies, locking strategies              |
 
 ### Distributed Systems
 
@@ -59,11 +59,11 @@ Core concepts for coordination and consistency in distributed architectures.
 
 | Topic                                                      | Key Concepts                                   |
 |------------------------------------------------------------|------------------------------------------------|
-| [CAP and PACELC Theorems](./25-cap-and-pacelc-theorems.md) | Distributed systems constraints                |
-| [Leader Election](./26-leader-election.md)                 | Leader-follower pattern, failover, leases      |
-| [Consensus](./27-consensus.md)                             | Quorum, Raft vs Paxos, consistency guarantees  |
-| [Pub/Sub](./28-pub-sub.md)                                 | Messaging patterns, event-driven architectures |
-| [Rate Limiting](./30-rate-limiting.md)                     | Algorithms, distributed limits, client retries     |
+| [CAP and PACELC Theorems](./27-cap-and-pacelc-theorems.md) | Distributed systems constraints                |
+| [Leader Election](./28-leader-election.md)                 | Leader-follower pattern, failover, leases      |
+| [Consensus](./29-consensus.md)                             | Quorum, Raft vs Paxos, consistency guarantees  |
+| [Pub/Sub](./30-pub-sub.md)                                 | Messaging patterns, event-driven architectures |
+| [Rate Limiting](./32-rate-limiting.md)                     | Algorithms, distributed limits, client retries     |
 
 ### Capacity Planning
 
@@ -71,7 +71,7 @@ Estimation and performance analysis techniques.
 
 | Topic                                                                          | Key Concepts                               |
 |--------------------------------------------------------------------------------|--------------------------------------------|
-| [Back-of-the-Envelope Calculations](./31-back-of-the-envelope-calculations.md) | Estimation techniques, performance numbers |
+| [Back-of-the-Envelope Calculations](./33-back-of-the-envelope-calculations.md) | Estimation techniques, performance numbers |
 
 ---
 

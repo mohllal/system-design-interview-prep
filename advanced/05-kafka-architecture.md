@@ -124,7 +124,7 @@ This is the same idea as a consensus log's commit index: **do not expose uncommi
 
 **ISR vs a fixed quorum:**
 
-Classic [consensus](../fundamentals/27-consensus.md) (Raft) commits when a **majority of voting members** persist the entry. Kafka commits when **all current ISR members** persist it, and ISR membership itself shrinks when a replica lags.
+Classic [consensus](../fundamentals/29-consensus.md) (Raft) commits when a **majority of voting members** persist the entry. Kafka commits when **all current ISR members** persist it, and ISR membership itself shrinks when a replica lags.
 
 - ✅ Writes are not blocked by a permanently slow replica .. it is removed from ISR
 - ✅ You can have `replication.factor=3` and still ack after 2 caught-up replicas
@@ -141,7 +141,7 @@ The producer chooses how many replicas must persist the record before the write 
 - `acks=1`: Leader has written locally .. lost if leader dies before followers catch up
 - `acks=all`: All ISR members have the record .. survives leader failure, subject to `min.insync.replicas`
 
-This is the same knob as [sync vs async replication](../fundamentals/21-database-replication.md) and as RPO in [multi-region](./02-multi-region-replication.md): wait for more copies, or return faster and accept a loss window.
+This is the same knob as [sync vs async replication](../fundamentals/23-database-replication.md) and as RPO in [multi-region](./02-multi-region-replication.md): wait for more copies, or return faster and accept a loss window.
 
 **Unclean leader election** is the failure-mode version of the same trade-off. If every ISR replica is gone, should the controller promote an out-of-sync replica (availability, possible data loss) or keep the partition offline (durability, downtime)? Kafka's default is to refuse unclean election.
 
@@ -162,7 +162,7 @@ graph LR
 
 Independent groups read the same partition at different speeds. A buggy consumer rewinds its offset and reprocesses. A new service starts at the latest offset, or at the beginning, without asking producers to change.
 
-**Pull, not push:** consumers fetch when they are ready. That is natural [backpressure](../fundamentals/29-messaging-patterns.md). A slow consumer lags; it does not force the broker to buffer per-consumer in memory or block producers (until disk/retention fills).
+**Pull, not push:** consumers fetch when they are ready. That is natural [backpressure](../fundamentals/31-messaging-patterns.md). A slow consumer lags; it does not force the broker to buffer per-consumer in memory or block producers (until disk/retention fills).
 
 **Trade-offs:**
 
@@ -190,7 +190,7 @@ graph TD
     T --> G2C1[Group search / consumer A<br/>owns P0 P1 P2]
 ```
 
-This is **partition ownership**, not [competing consumers](../fundamentals/29-messaging-patterns.md) on the same message. Two workers in the same group will never process the same offset. That preserves per-partition order at the cost of a hard parallelism cap: extra consumers in a group sit idle once every partition has an owner.
+This is **partition ownership**, not [competing consumers](../fundamentals/31-messaging-patterns.md) on the same message. Two workers in the same group will never process the same offset. That preserves per-partition order at the cost of a hard parallelism cap: extra consumers in a group sit idle once every partition has an owner.
 
 When membership changes, the group **rebalances** — partitions are reassigned. A rebalance is a correctness event (ownership must be exclusive) and an availability event (processing pauses or stutters). Cooperative / incremental rebalancing reduces the pause, but the invariant stays: one owner per partition per group.
 
@@ -273,17 +273,17 @@ graph TD
     end
 ```
 
-**Why this split:** [consensus](../fundamentals/27-consensus.md) is expensive on the latency path. Use it for a small, critical dataset (who is leader, what is the schema of the cluster), and use cheaper replication for bulk data.
+**Why this split:** [consensus](../fundamentals/29-consensus.md) is expensive on the latency path. Use it for a small, critical dataset (who is leader, what is the schema of the cluster), and use cheaper replication for bulk data.
 
 **Trade-off:** two failure domains. If metadata is unavailable, you cannot create topics or elect new leaders, even if existing leaders can still serve produce/fetch for a while. If you put consensus on the data path instead, every append pays majority round-trips.
 
 **Elsewhere:** Kubernetes (etcd vs kubelet), SDN controllers vs switches, Spanner (placement/metadata vs tablet serving), almost every large storage system. "Consensus for control, simpler replication for data" is one of the most reusable architecture rules in this repository.
 
-[Leader election](../fundamentals/26-leader-election.md) here is not optional decoration: a partition with two leaders splits the log. Kafka fences stale leaders with **leader epochs** so a revived old leader cannot append into a fork. Fencing tokens after failover are the same idea as in multi-region promotion.
+[Leader election](../fundamentals/28-leader-election.md) here is not optional decoration: a partition with two leaders splits the log. Kafka fences stale leaders with **leader epochs** so a revived old leader cannot append into a fork. Fencing tokens after failover are the same idea as in multi-region promotion.
 
 ## Exactly-Once as a Composition
 
-Kafka's default is **at-least-once**: retry produces, retry fetches, commit offsets after processing. Duplicates happen. See [delivery semantics](../fundamentals/29-messaging-patterns.md).
+Kafka's default is **at-least-once**: retry produces, retry fetches, commit offsets after processing. Duplicates happen. See [delivery semantics](../fundamentals/31-messaging-patterns.md).
 
 "Exactly-once" is not a broker flag. It is several mechanisms stacked so that a retry cannot create a second visible effect:
 

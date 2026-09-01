@@ -17,7 +17,7 @@ related:
   - fundamentals/28-leader-election.md
   - fundamentals/29-consensus.md
   - fundamentals/31-messaging-patterns.md
-  - architecture/07-transactional-outbox.md
+  - patterns/07-transactional-outbox.md
   - advanced/02-multi-region-replication.md
 ---
 
@@ -357,7 +357,7 @@ sequenceDiagram
 - Exactly-once is end-to-end only if **every side effect** is in the transaction (or is idempotent). A send-email call outside Kafka is still at-least-once
 - Idempotent producer without transactions still does not make a consumer's external DB write exactly-once
 
-**Elsewhere:** database transactions plus outbox ([Transactional Outbox](../architecture/07-transactional-outbox.md)), idempotency keys on APIs, fencing tokens in leader failover, "effectively once" = at-least-once + idempotent handlers. Always ask *which* hop is exactly-once, not whether the product brochure says the words.
+**Elsewhere:** database transactions plus outbox ([Transactional Outbox](../patterns/07-transactional-outbox.md)), idempotency keys on APIs, fencing tokens in leader failover, "effectively once" = at-least-once + idempotent handlers. Always ask *which* hop is exactly-once, not whether the product brochure says the words.
 
 ## Mapping Kafka onto the general replication vocabulary
 

@@ -209,7 +209,7 @@ The fixes are routing decisions:
 - Wait for the replica's apply position
 
 **Cross-shard transactions.** Within one shard the primary can order everything it is asked to serialize.
-Across shards ([partitioning](./24-database-partitioning.md)) no single node sees the whole transaction, so atomicity needs [2PC](../architecture/05-two-phase-commit.md) and isolation needs a shared notion of time (Spanner's TrueTime).
+Across shards ([partitioning](./24-database-partitioning.md)) no single node sees the whole transaction, so atomicity needs [2PC](../patterns/05-two-phase-commit.md) and isolation needs a shared notion of time (Spanner's TrueTime).
 Write skew is worse here: the two conflicting reads can land on different shards, so no node ever observes the conflict even when every shard is serializable on its own.
 That is the real argument for colocating whatever must commit together under one partition key.
 

@@ -12,6 +12,7 @@ concepts:
 related:
   - fundamentals/05-rest-api.md
   - fundamentals/32-rate-limiting.md
+  - patterns/13-backend-for-frontend.md
 ---
 
 # OAuth 2.0
@@ -282,7 +283,7 @@ How tokens surface in an HTTP API. See [REST API](../fundamentals/05-rest-api.md
 - **Client retry behavior**: A `401 invalid_token` justifies exactly one refresh and one retry; a second failure means re-authenticate. A `403` should never be retried with the same token.
 - **Where to validate**: An API gateway can check signature, issuer, audience, expiry, and coarse scope once for every service behind it. Per-resource authorization ("is this Alice's order?") has to stay in the service that owns the data.
 - **Scope granularity**: Map scopes to endpoint groups, not to individual routes. `read:orders` and `write:orders` scale; a scope per endpoint produces a consent screen nobody reads.
-- **Rate limiting**: Once requests carry a token, `client_id` and `sub` are far better rate-limit keys than IP address. See [Rate Limiting](../fundamentals/32-rate-limiting.md).
+- **Rate limiting**: Once requests carry a token, `client_id` and `sub` are far better rate-limit keys than IP address. See [Rate limiting](../fundamentals/32-rate-limiting.md).
 - **Caching**: Responses to authenticated requests must not land in a shared cache. Set `Cache-Control: private` (or `no-store`) so a gateway or CDN never serves one user's data to another.
 
 ## OAuth 2.0 vs OpenID Connect
@@ -310,7 +311,7 @@ In interviews, reach for OAuth when the problem is delegated API access, and OID
 ## Storing tokens on the client
 
 - **Server-rendered web app**: Tokens stay on the server, keyed by an `HttpOnly`, `Secure`, `SameSite` session cookie. The browser never holds a token. Simplest and safest.
-- **SPA**: Prefer the backend-for-frontend (BFF) pattern, where a thin server-side component runs the OAuth flow, holds the tokens, and exposes cookie-authenticated endpoints to the SPA. If tokens must live in the browser, keep the access token in memory only, and never put a refresh token in `localStorage`, where any injected script can read it.
+- **SPA**: Prefer the [Backend-for-frontend](../patterns/13-backend-for-frontend.md) (BFF) pattern, where a thin server-side component runs the OAuth flow, holds the tokens, and exposes cookie-authenticated endpoints to the SPA. If tokens must live in the browser, keep the access token in memory only, and never put a refresh token in `localStorage`, where any injected script can read it.
 - **Mobile and native**: Use the platform secure store and run the flow in the system browser (`ASWebAuthenticationSession`, Android Custom Tabs), not an embedded WebView. An embedded WebView can read the user's credentials and breaks single sign-on with other apps.
 - **Machine clients**: Keep client secrets in a secret manager and rotate them. Where the provider supports it, prefer mTLS or private-key JWT client authentication over a shared secret.
 

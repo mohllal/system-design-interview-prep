@@ -16,7 +16,7 @@ related:
   - fundamentals/25-database-concurrency-control.md
   - fundamentals/27-cap-and-pacelc-theorems.md
   - fundamentals/34-cdn.md
-  - architecture/07-transactional-outbox.md
+  - patterns/07-transactional-outbox.md
 ---
 
 # SQL vs NoSQL
@@ -130,7 +130,7 @@ A typical service:
 
 The relational database stays the **system of record** for money and identity. Every other store is derived, cached, or specialized — and should be rebuildable from the system of record if it is lost.
 
-Dual writes to two stores fail independently, so use an [outbox](../architecture/07-transactional-outbox.md) or change data capture when the copies must not diverge silently.
+Dual writes to two stores fail independently, so use an [outbox](../patterns/07-transactional-outbox.md) or change data capture when the copies must not diverge silently.
 
 ## Changing your mind later
 

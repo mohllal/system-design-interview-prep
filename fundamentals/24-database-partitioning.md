@@ -130,14 +130,14 @@ If you need roughly-increasing IDs for range scans, put time in the high bits an
 
 ## Cross-partition work
 
-A transaction that touches two shards is a distributed transaction ([2PC](../architecture/05-two-phase-commit.md)): extra RTTs, coordinator failure, more ways to be unsure.
+A transaction that touches two shards is a distributed transaction ([2PC](../patterns/05-two-phase-commit.md)): extra RTTs, coordinator failure, more ways to be unsure.
 
 What it costs is isolation, not just latency. Each shard can be perfectly serializable on its own and the pair of them still be wrong, because no single node ever sees both halves of the transaction — cross-shard write skew is the standard example. See [concurrency control](./25-database-concurrency-control.md) for the anomalies themselves.
 
 Prefer:
 
 - Same partition key (colocate)
-- [Saga](../architecture/06-saga.md) / outbox: accept eventual consistency between aggregates
+- [Saga](../patterns/06-saga.md) / outbox: accept eventual consistency between aggregates
 - Denormalize so the read path does not join
 - App-side join only for rare admin paths, with a timeout and a cap on keys
 

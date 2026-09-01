@@ -169,7 +169,7 @@ Analytics, backups, and CDC are what replicas are *for* more often than "2× OLT
 
 A replica is live: the same `DROP`, ransomware, or schema bug replicates. Backups and PITR (WAL archive) are a **point in time** you can restore that is not following the primary.
 
-CDC consumers (Kafka, Debezium) are replicas of the log in another system. They have the same lag and "what is committed" questions. Use [outbox](../architecture/07-transactional-outbox.md) when the app must not dual-write.
+CDC consumers (Kafka, Debezium) are replicas of the log in another system. They have the same lag and "what is committed" questions. Use [outbox](../patterns/07-transactional-outbox.md) when the app must not dual-write.
 
 ## What replication does not do
 

@@ -51,7 +51,7 @@ A curated collection of system design concepts and architecture patterns built a
 - [MapReduce](https://static.googleusercontent.com/media/research.google.com/en//archive/mapreduce-osdi04.pdf) — Simplified data processing on large clusters
 - [Bigtable](https://static.googleusercontent.com/media/research.google.com/en//archive/bigtable-osdi06.pdf) — Distributed storage system for structured data
 - [Dynamo](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf) — Amazon's highly available key-value store
-- [Kafka: a Distributed Messaging System for Log Processing](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/09/Kafka.pdf) — The log-as-broker design behind `advanced/05-kafka-architecture.md`
+- [Kafka: a Distributed Messaging System for Log Processing](https://www.microsoft.com/en-us/research/wp-content/uploads/2017/09/Kafka.pdf) — The log-as-broker design
 - [F1: A Distributed SQL Database That Scales](https://www.cs.princeton.edu/courses/archive/spring16/cos598F/f1-google.pdf) — Google's globally-distributed relational database, built on Spanner
 
 **Transaction management**

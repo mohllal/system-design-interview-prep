@@ -24,8 +24,6 @@ In distributed systems it is the default answer to "which node owns this key?" â
 
 This note covers what makes a hash function good, the two families of hash functions, and the distribution schemes that survive nodes joining and leaving.
 
-Related: [Caching](./11-caching.md), [Bloom Filters](./17-bloom-filters.md), [Checksums](./18-checksums.md), [Load Balancing](./13-load-balancing.md), [Database Partitioning](./24-database-partitioning.md).
-
 ## What makes a hash function good?
 
 - **Deterministic**: The same input always produces the same output, on every node and every process restart.

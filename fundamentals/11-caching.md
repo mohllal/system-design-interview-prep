@@ -25,8 +25,6 @@ It is one of the highest-leverage techniques in system design: it cuts read late
 
 The cost is correctness. A cache is a second copy of the truth, so most cache design decisions are really decisions about how stale that copy may get and who is responsible for fixing it.
 
-Related: [Hashing](./16-hashing.md), [Bloom Filters](./17-bloom-filters.md), [CDN](./34-cdn.md), [Rate Limiting](./32-rate-limiting.md), [Resilience](./14-resilience.md).
-
 ## When to use caching
 
 **Good fit:**

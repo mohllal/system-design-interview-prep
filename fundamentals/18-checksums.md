@@ -30,8 +30,6 @@ Checksums are hashing put to work on the **integrity** job — answering "did th
 
 Note the asymmetry. A mismatch is proof that something is wrong. A match is only strong evidence that nothing is, which is why the choice of algorithm is really a choice about how strong that evidence needs to be.
 
-Related: [Hashing](./16-hashing.md), [Bloom Filters](./17-bloom-filters.md), [Network Protocols](./02-network-protocols.md), [Reliability](./09-reliability.md), [Database Replication](./23-database-replication.md).
-
 ## How checksums work
 
 ```mermaid

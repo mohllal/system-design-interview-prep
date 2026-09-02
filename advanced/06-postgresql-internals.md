@@ -33,8 +33,6 @@ Postgres is a useful example because those layers are relatively explicit and se
 
 The generic versions of these topics live in the fundamentals notes: this document assumes them and only covers what Postgres does specifically.
 
-Related: [Relational Databases](../fundamentals/19-relational-databases.md), [Indexes](../fundamentals/22-database-indexes.md), [Concurrency Control](../fundamentals/25-database-concurrency-control.md), [Replication](../fundamentals/23-database-replication.md).
-
 ## The stack
 
 ```plaintext

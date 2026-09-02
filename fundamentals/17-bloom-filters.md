@@ -26,8 +26,6 @@ It gives one of two answers — "definitely not in the set" or "might be in the 
 
 That asymmetry is the whole point. A cheap, certain "no" lets you skip an expensive lookup entirely: a disk read, a database query, a network round trip.
 
-Related: [Caching](./11-caching.md), [Hashing](./16-hashing.md), [Checksums](./18-checksums.md), [Database Indexes](./22-database-indexes.md), [Non-relational Databases](./20-non-relational-databases.md), [Database Replication](./23-database-replication.md).
-
 ## Core properties
 
 - **No false negatives**: If the filter says "not present," the item is definitely absent.

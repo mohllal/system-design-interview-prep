@@ -106,6 +106,32 @@ Insert finds the leaf and puts the key there.
 
 If the leaf is full, it **splits**: half the keys move to a new page, and the parent gets a new separator key. Splits can cascade to the root, growing the tree by one level.
 
+Take the leftmost leaf from the tree above — `[10, 20, 30, 40]`, under parent separators `[20 | 40]` — with a capacity of 4 keys, already full:
+
+```plaintext
+Before:                     parent: [ 20 | 40 ]
+                                        |
+                              leaf: [ 10, 20, 30, 40 ]
+
+Insert 25 -> the leaf temporarily holds 5 keys, one over capacity:
+
+                              [ 10, 20, 25, 30, 40 ]
+
+Split: the keys are divided across two leaf pages, and the smallest
+key of the new right leaf (30) is copied up into the parent as a
+new separator. A B+tree leaf split never deletes or loses a key -
+every one of the 5 keys still exists on one of the two new leaves.
+
+After:                    parent: [ 20 | 30 | 40 ]
+                                    /         \
+                       leaf: [ 10, 20, 25 ]   leaf: [ 30, 40 ]
+```
+
+Note what this costs: an insert that does not split writes **one page** (the leaf).
+This one writes **three** — the old leaf rewritten as two new leaves, plus the parent rewritten to hold its new separator — and the new leaves are also linked into the existing leaf chain so range scans still walk forward correctly.
+If the parent itself has no room for a third separator, the same thing happens one level up: the parent splits and promotes a separator to *its* parent.
+That upward cascade, repeated all the way to the root, is the only way a B+tree ever grows taller — which is also why splits are rare in absolute terms even though they are the expensive case: most inserts land in a leaf with room to spare and touch only that one page.
+
 Random inserts (for example UUIDv4 as the primary key of a clustered table) split constantly and fragment pages. Append-ish keys (`bigserial`, a time-ordered ULID or UUIDv7) land on the right edge instead, which is cheaper and keeps the index dense.
 
 When rows are deleted, the space they occupied in the index's leaf pages becomes unused—these are called "holes." Over time, as deletes and updates occur, these holes accumulate, making the index take up much more space than it needs for the actual data it contains. This wasted, unused space is what creates a **bloated index**: an index that is larger and less efficient than necessary because of leftover gaps.
@@ -397,7 +423,9 @@ This is why LSM trees show up in high-ingest, write-heavy stores (time series, l
 
 Amplification is the "hidden tax" of an index or data structure, where you pay extra IO and storage to gain query flexibility or throughput at steady state.
 
-- **Write Amplification:** The ratio of physical bytes written to storage, to logical bytes the application actually wanted to write. If you update a row and, due to the index or storage engine structure (e.g., LSM or B+tree), the database ends up writing the data several times (logs, indexes, compaction), write amplification is greater than 1. LSM trees, for instance, can have higher write amplification due to compactions and rewriting data as SSTables advance through levels.
+- **Write Amplification:** The ratio of physical bytes written to storage, to logical bytes the application actually wanted to write.
+  If you update a row and, due to the index or storage engine structure (e.g., LSM or B+tree), the database ends up writing the data several times (logs, indexes, compaction), write amplification is greater than 1.
+  LSM trees, for instance, can have higher write amplification due to compactions and rewriting data as SSTables advance through levels.
 
 - **Storage Amplification:** The ratio of the total bytes on disk to the logical size of the data. Overwrites, deleted-but-not-yet-compacted tombstones, and extra copies in indexes all increase storage amplification. A system with lots of versions, uncollected garbage, or highly-redundant indexes can store several times the "true" dataset size.
 
